@@ -7,7 +7,7 @@ resource "aws_ecr_repository" "lambda_repository" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 
   tags = {
