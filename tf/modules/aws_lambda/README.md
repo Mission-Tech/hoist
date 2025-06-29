@@ -1,4 +1,4 @@
-# hoist_lambda
+# hoist aws_lambda
 
 A terraform module with everything necessary to
 bootstrap a mission tech backend service on AWS lambda.
