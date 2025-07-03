@@ -53,7 +53,7 @@ resource "aws_iam_policy" "meta" {
         ]
         Resource = "arn:aws:iam::*:role/${var.ci_assume_role_name}"
         Condition = {
-          StringEquals = {
+          StringLike = {
             "iam:PolicyARN": "arn:aws:iam::*:policy/${var.app}-${var.env}-ecr" # Must match policy name in main module
           }
         }
