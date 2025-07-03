@@ -30,5 +30,5 @@ resource "aws_iam_policy" "github_deploy_ecr" {
 
 resource "aws_iam_role_policy_attachment" "github_deploy_ecr" {
     role       = var.ci_assume_role_name
-    policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+    policy_arn = aws_iam_policy.github_deploy_ecr.arn
 }

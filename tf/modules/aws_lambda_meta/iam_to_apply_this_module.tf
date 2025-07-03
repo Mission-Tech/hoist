@@ -78,3 +78,8 @@ resource "aws_iam_policy" "meta" {
     Description = "Terraform execution policy for hoist_lambda module"
   }
 }
+
+resource "aws_iam_role_policy_attachment" "tfstate_access" {
+    role       = var.ci_assume_role_name
+    policy_arn = aws_iam_policy.meta.arn
+}
