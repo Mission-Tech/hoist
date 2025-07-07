@@ -67,6 +67,39 @@ resource "aws_iam_policy" "meta" {
         ]
         Resource = "arn:aws:iam::*:role/${var.ci_assume_role_name}"
       },
+      # IAM role creation and management for CodeDeploy
+      {
+        Sid    = "CodeDeployRoleManagement"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole",
+          "iam:GetRole",
+          "iam:DeleteRole",
+          "iam:TagRole",
+          "iam:ListRoleTags",
+          "iam:UpdateAssumeRolePolicy"
+        ]
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+      },
+      # Allow attaching AWS managed CodeDeploy policies to the CodeDeploy role
+      {
+        Sid    = "CodeDeployPolicyAttachment"
+        Effect = "Allow"
+        Action = [
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:ListAttachedRolePolicies"
+        ]
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+        Condition = {
+          StringLike = {
+            "iam:PolicyARN": [
+              "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda",
+              "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambdaLimited"
+            ]
+          }
+        }
+      },
     ]
   })
 
