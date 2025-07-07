@@ -77,7 +77,17 @@ resource "aws_iam_policy" "meta" {
           "iam:DeleteRole",
           "iam:TagRole",
           "iam:ListRoleTags",
-          "iam:UpdateAssumeRolePolicy"
+          "iam:UpdateAssumeRolePolicy",
+          "iam:ListRolePolicies"
+        ]
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+      },
+      # Allow listing attached policies on CodeDeploy role (needed for Terraform state checks)
+      {
+        Sid    = "CodeDeployRoleListPolicies"
+        Effect = "Allow"
+        Action = [
+          "iam:ListAttachedRolePolicies"
         ]
         Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
       },
@@ -87,8 +97,7 @@ resource "aws_iam_policy" "meta" {
         Effect = "Allow"
         Action = [
           "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy",
-          "iam:ListAttachedRolePolicies"
+          "iam:DetachRolePolicy"
         ]
         Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
         Condition = {
