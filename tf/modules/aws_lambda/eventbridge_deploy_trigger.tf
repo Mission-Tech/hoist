@@ -59,7 +59,18 @@ resource "aws_iam_role_policy" "trigger_lambda" {
         Resource = [
           aws_codedeploy_app.lambda.arn,
           "arn:aws:codedeploy:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:deploymentgroup:${aws_codedeploy_app.lambda.name}/${aws_codedeploy_deployment_group.lambda.deployment_group_name}",
-          "arn:aws:codedeploy:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:deploymentconfig:${aws_codedeploy_deployment_config.lambda_25_percent_per_minute.deployment_config_name}"
+          "arn:aws:codedeploy:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:deploymentconfig:${aws_codedeploy_deployment_config.lambda_deployment_config.deployment_config_name}",
+          "arn:aws:codedeploy:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:deploymentconfig:CodeDeployDefault.LambdaAllAtOnce"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = [
+          "${aws_s3_bucket.codedeploy_appspec.arn}/*"
         ]
       },
       {
@@ -96,6 +107,8 @@ resource "aws_lambda_function" "trigger_codedeploy" {
       CODEDEPLOY_APP_NAME    = aws_codedeploy_app.lambda.name
       DEPLOYMENT_GROUP_NAME  = aws_codedeploy_deployment_group.lambda.deployment_group_name
       LAMBDA_FUNCTION_NAME   = "${var.app}-${var.env}"
+      HEALTH_CHECK_FUNCTION_NAME = aws_lambda_function.health_check.function_name
+      APPSPEC_BUCKET = aws_s3_bucket.codedeploy_appspec.bucket
     }
   }
 

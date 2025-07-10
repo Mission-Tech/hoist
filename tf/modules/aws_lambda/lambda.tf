@@ -108,7 +108,8 @@ resource "aws_lambda_function" "main" {
 
   lifecycle {
     # Ignore changes to image_uri since CodeDeploy will manage deployments
-    ignore_changes = [image_uri]
+    # Ignore publish to prevent creating new versions on every apply
+    ignore_changes = [image_uri, publish]
   }
 
   tags = {
