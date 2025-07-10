@@ -80,7 +80,7 @@ resource "aws_iam_policy" "meta" {
           "iam:UpdateAssumeRolePolicy",
           "iam:ListRolePolicies"
         ]
-        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
       },
       # Allow listing attached policies on CodeDeploy role (needed for Terraform state checks)
       {
@@ -89,7 +89,7 @@ resource "aws_iam_policy" "meta" {
         Action = [
           "iam:ListAttachedRolePolicies"
         ]
-        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
       },
       # Allow attaching AWS managed CodeDeploy policies to the CodeDeploy role
       {
@@ -99,7 +99,7 @@ resource "aws_iam_policy" "meta" {
           "iam:AttachRolePolicy",
           "iam:DetachRolePolicy"
         ]
-        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-codedeploy"
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
         Condition = {
           StringLike = {
             "iam:PolicyARN": [
@@ -177,7 +177,7 @@ resource "aws_iam_policy" "meta" {
           "iam:GetRolePolicy",
           "iam:DeleteRolePolicy"
         ]
-        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-*"
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
       },
       # Allow attaching Lambda execution policies
       {
@@ -187,7 +187,7 @@ resource "aws_iam_policy" "meta" {
           "iam:AttachRolePolicy",
           "iam:DetachRolePolicy"
         ]
-        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-*"
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
         Condition = {
           StringEquals = {
             "iam:PolicyARN": [
@@ -208,7 +208,7 @@ resource "aws_iam_policy" "meta" {
           "cloudwatch:TagResource",
           "cloudwatch:ListTagsForResource"
         ]
-        Resource = "arn:aws:cloudwatch:*:*:alarm:${var.app}-${var.env}-*"
+        Resource = "arn:aws:cloudwatch:*:*:alarm:${var.app}-${var.env}*"
       },
       # EventBridge rule management
       {
@@ -225,8 +225,8 @@ resource "aws_iam_policy" "meta" {
           "events:ListTagsForResource"
         ]
         Resource = [
-          "arn:aws:events:*:*:rule/${var.app}-${var.env}-*",
-          "arn:aws:events:*:*:rule/*/${var.app}-${var.env}-*"
+          "arn:aws:events:*:*:rule/${var.app}-${var.env}*",
+          "arn:aws:events:*:*:rule/*/${var.app}-${var.env}*"
         ]
       },
       # Allow reading Lambda service role for permissions
@@ -238,7 +238,7 @@ resource "aws_iam_policy" "meta" {
         ]
         Resource = "arn:aws:iam::*:role/aws-service-role/lambda.amazonaws.com/AWSServiceRoleForLambda"
       },
-      # API Gateway management
+      # API Gateway management - scoped to this app/env only by naming pattern
       {
         Sid    = "APIGatewayManagement"
         Effect = "Allow"
@@ -254,6 +254,11 @@ resource "aws_iam_policy" "meta" {
           "arn:aws:apigateway:*::/restapis/*",
           "arn:aws:apigateway:*::/tags/*"
         ]
+        Condition = {
+          "ForAnyValue:StringLike" = {
+            "apigateway:resource/restapi-name" = "${var.app}-${var.env}*"
+          }
+        }
       },
       # VPC and Security Group read permissions for Lambda
       {
@@ -282,7 +287,7 @@ resource "aws_iam_policy" "meta" {
         Resource = "*"
         Condition = {
           StringLike = {
-            "aws:RequestTag/Name": "${var.app}-${var.env}-*"
+            "aws:RequestTag/Name": "${var.app}-${var.env}*"
           }
         }
       },
@@ -295,7 +300,34 @@ resource "aws_iam_policy" "meta" {
           "ecr:BatchGetImage",
           "ecr:GetDownloadUrlForLayer"
         ]
-        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}"
+        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
+      },
+      # S3 bucket management - allow any bucket with the app-env prefix
+      {
+        Sid    = "S3BucketManagement"
+        Effect = "Allow"
+        Action = [
+          "s3:CreateBucket",
+          "s3:DeleteBucket",
+          "s3:ListBucket",
+          "s3:GetBucket*",
+          "s3:PutBucket*",
+          "s3:DeleteBucket*"
+        ]
+        Resource = "arn:aws:s3:::${var.app}-${var.env}*"
+      },
+      # S3 object permissions for any objects in app-env prefixed buckets
+      {
+        Sid    = "S3ObjectManagement"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject*",
+          "s3:PutObject*",
+          "s3:DeleteObject*",
+          "s3:ListMultipartUploadParts",
+          "s3:AbortMultipartUpload"
+        ]
+        Resource = "arn:aws:s3:::${var.app}-${var.env}*/*"
       },
     ]
   })
