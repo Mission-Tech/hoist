@@ -25,6 +25,10 @@ The project consists of two main Terraform modules:
 - **Least Privilege**: IAM policies are scoped to specific resources using variable interpolation
 - **Lifecycle Management**: ECR repositories automatically clean up old images
 
+### Naming Conventions
+
+- **Avoid Redundant Suffixes**: Don't add the resource type to the name if it's redundant (e.g., avoid "deployment-group" suffix for a deployment group resource)
+
 ## Development Commands
 
 Currently, there are no build/test/lint commands defined. The project contains:
