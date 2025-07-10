@@ -109,6 +109,194 @@ resource "aws_iam_policy" "meta" {
           }
         }
       },
+      # CodeDeploy application and deployment group management
+      {
+        Sid    = "CodeDeployAppManagement"
+        Effect = "Allow"
+        Action = [
+          "codedeploy:CreateApplication",
+          "codedeploy:GetApplication",
+          "codedeploy:DeleteApplication",
+          "codedeploy:TagResource",
+          "codedeploy:ListTagsForResource",
+          "codedeploy:CreateDeploymentGroup",
+          "codedeploy:GetDeploymentGroup",
+          "codedeploy:UpdateDeploymentGroup",
+          "codedeploy:DeleteDeploymentGroup",
+          "codedeploy:CreateDeploymentConfig",
+          "codedeploy:GetDeploymentConfig",
+          "codedeploy:DeleteDeploymentConfig"
+        ]
+        Resource = [
+          "arn:aws:codedeploy:*:*:application:${var.app}-${var.env}",
+          "arn:aws:codedeploy:*:*:deploymentgroup:${var.app}-${var.env}/*",
+          "arn:aws:codedeploy:*:*:deploymentconfig:${var.app}-${var.env}-*"
+        ]
+      },
+      # Lambda function and execution role management
+      {
+        Sid    = "LambdaFunctionManagement"
+        Effect = "Allow"
+        Action = [
+          "lambda:CreateFunction",
+          "lambda:GetFunction",
+          "lambda:UpdateFunctionConfiguration",
+          "lambda:UpdateFunctionCode",
+          "lambda:DeleteFunction",
+          "lambda:TagResource",
+          "lambda:ListTags",
+          "lambda:CreateAlias",
+          "lambda:GetAlias",
+          "lambda:UpdateAlias",
+          "lambda:DeleteAlias",
+          "lambda:AddPermission",
+          "lambda:RemovePermission",
+          "lambda:GetPolicy"
+        ]
+        Resource = [
+          "arn:aws:lambda:*:*:function:${var.app}-${var.env}",
+          "arn:aws:lambda:*:*:function:${var.app}-${var.env}:*",
+          "arn:aws:lambda:*:*:function:${var.app}-${var.env}-*",
+          "arn:aws:lambda:*:*:function:${var.app}-${var.env}-*:*"
+        ]
+      },
+      # IAM role management for Lambda execution and trigger roles
+      {
+        Sid    = "LambdaRoleManagement"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole",
+          "iam:GetRole",
+          "iam:DeleteRole",
+          "iam:TagRole",
+          "iam:ListRoleTags",
+          "iam:UpdateAssumeRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:PutRolePolicy",
+          "iam:GetRolePolicy",
+          "iam:DeleteRolePolicy"
+        ]
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-*"
+      },
+      # Allow attaching Lambda execution policies
+      {
+        Sid    = "LambdaExecutionPolicyAttachment"
+        Effect = "Allow"
+        Action = [
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy"
+        ]
+        Resource = "arn:aws:iam::*:role/${var.app}-${var.env}-*"
+        Condition = {
+          StringEquals = {
+            "iam:PolicyARN": [
+              "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+            ]
+          }
+        }
+      },
+      # CloudWatch alarm management
+      {
+        Sid    = "CloudWatchAlarmManagement"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:TagResource",
+          "cloudwatch:ListTagsForResource"
+        ]
+        Resource = "arn:aws:cloudwatch:*:*:alarm:${var.app}-${var.env}-*"
+      },
+      # EventBridge rule management
+      {
+        Sid    = "EventBridgeManagement"
+        Effect = "Allow"
+        Action = [
+          "events:PutRule",
+          "events:DescribeRule",
+          "events:DeleteRule",
+          "events:PutTargets",
+          "events:RemoveTargets",
+          "events:ListTargetsByRule",
+          "events:TagResource",
+          "events:ListTagsForResource"
+        ]
+        Resource = [
+          "arn:aws:events:*:*:rule/${var.app}-${var.env}-*",
+          "arn:aws:events:*:*:rule/*/${var.app}-${var.env}-*"
+        ]
+      },
+      # Allow reading Lambda service role for permissions
+      {
+        Sid    = "ServiceLinkedRoleRead"
+        Effect = "Allow"
+        Action = [
+          "iam:GetRole"
+        ]
+        Resource = "arn:aws:iam::*:role/aws-service-role/lambda.amazonaws.com/AWSServiceRoleForLambda"
+      },
+      # API Gateway management
+      {
+        Sid    = "APIGatewayManagement"
+        Effect = "Allow"
+        Action = [
+          "apigateway:GET",
+          "apigateway:POST",
+          "apigateway:PUT",
+          "apigateway:DELETE",
+          "apigateway:PATCH"
+        ]
+        Resource = [
+          "arn:aws:apigateway:*::/restapis",
+          "arn:aws:apigateway:*::/restapis/*",
+          "arn:aws:apigateway:*::/tags/*"
+        ]
+      },
+      # VPC and Security Group read permissions for Lambda
+      {
+        Sid    = "VPCReadAccess"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces"
+        ]
+        Resource = "*"
+      },
+      # Security Group management for Lambda
+      {
+        Sid    = "SecurityGroupManagement"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateSecurityGroup",
+          "ec2:DeleteSecurityGroup",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupEgress",
+          "ec2:CreateTags",
+          "ec2:DeleteTags"
+        ]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:RequestTag/Name": "${var.app}-${var.env}-*"
+          }
+        }
+      },
+      # ECR image read permissions for Lambda deployment
+      {
+        Sid    = "ECRImageRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ]
+        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}"
+      },
     ]
   })
 
