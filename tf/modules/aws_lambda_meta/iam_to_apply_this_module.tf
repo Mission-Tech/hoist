@@ -6,9 +6,10 @@
 # It's fine that this policy doesn't give permissions to manage this policy itself - it'll be created
 # by a different role.
 
-resource "aws_iam_policy" "meta" {
-  name        = "${var.app}-${var.env}-hoist-lambda-tf-meta"
-  description = "Permissions required to run terraform for the hoist_lambda module"
+# ECR and basic infrastructure policy
+resource "aws_iam_policy" "ecr_infrastructure" {
+  name        = "${var.app}-${var.env}-hoist-lambda-tf-ecr"
+  description = "ECR and basic infrastructure permissions for hoist_lambda module"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -27,7 +28,18 @@ resource "aws_iam_policy" "meta" {
           "ecr:DeleteLifecyclePolicy",
           "ecr:DeleteRepository"
         ]
-        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}"
+        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
+      },
+      # ECR image read permissions for Lambda deployment
+      {
+        Sid    = "ECRImageRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ]
+        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
       },
       # IAM policy creation for the ECR access policy
       {
@@ -152,7 +164,8 @@ resource "aws_iam_policy" "meta" {
           "lambda:AddPermission",
           "lambda:RemovePermission",
           "lambda:GetPolicy",
-          "lambda:ListVersionsByFunction"
+          "lambda:ListVersionsByFunction",
+          "lambda:GetFunctionCodeSigningConfig"
         ]
         Resource = [
           "arn:aws:lambda:*:*:function:${var.app}-${var.env}",
@@ -239,33 +252,29 @@ resource "aws_iam_policy" "meta" {
         ]
         Resource = "arn:aws:iam::*:role/aws-service-role/lambda.amazonaws.com/AWSServiceRoleForLambda"
       },
-      # API Gateway management - scoped to this app/env only by naming pattern using ABAC
+      # API Gateway read operations - cannot be scoped by ABAC
+      # NOTE: apigateway:Request/ApiName and apigateway:Resource/ApiName condition keys
+      # are NOT available for GET operations (GetRestApi, GetRestApis). AWS only provides
+      # these keys for CreateRestApi, UpdateRestApi, and DeleteRestApi operations.
+      # Therefore, read operations must be granted on all APIs. Write operations below
+      # are properly scoped to our naming convention.
       {
-        Sid    = "APIGatewayManagement"
+        Sid    = "APIGatewayRead"
         Effect = "Allow"
         Action = [
-          "apigateway:GET",
-          "apigateway:POST",
-          "apigateway:PUT",
-          "apigateway:DELETE",
-          "apigateway:PATCH"
+          "apigateway:GET"
         ]
         Resource = [
           "arn:aws:apigateway:*::/restapis",
           "arn:aws:apigateway:*::/restapis/*",
           "arn:aws:apigateway:*::/tags/*"
         ]
-        Condition = {
-          "ForAnyValue:StringLikeIfExists" = {
-            "apigateway:Request/ApiName" = "${var.app}-${var.env}*"
-          }
-        }
       },
+      # API Gateway write operations - scoped by ABAC to our naming convention
       {
-        Sid    = "APIGatewayManagementResource"
-        Effect = "Allow" 
+        Sid    = "APIGatewayWrite"
+        Effect = "Allow"
         Action = [
-          "apigateway:GET",
           "apigateway:POST",
           "apigateway:PUT",
           "apigateway:DELETE",
@@ -278,10 +287,31 @@ resource "aws_iam_policy" "meta" {
         ]
         Condition = {
           "ForAnyValue:StringLikeIfExists" = {
+            "apigateway:Request/ApiName" = "${var.app}-${var.env}*",
             "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
           }
         }
       },
+    ]
+  })
+
+  tags = {
+    Name        = "${var.app}-${var.env}-hoist-lambda-terraform-ecr"
+    Module      = "hoist_lambda"
+    Application = var.app
+    Environment = var.env
+    Description = "ECR and infrastructure policy for hoist_lambda module"
+  }
+}
+
+# Compute and networking policy
+resource "aws_iam_policy" "compute_networking" {
+  name        = "${var.app}-${var.env}-hoist-lambda-tf-compute"
+  description = "Compute and networking permissions for hoist_lambda module"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       # VPC and Security Group read permissions for Lambda
       {
         Sid    = "VPCReadAccess"
@@ -313,18 +343,27 @@ resource "aws_iam_policy" "meta" {
             "aws:RequestTag/Name": "${var.app}-${var.env}*"
           }
         }
-      },
-      # ECR image read permissions for Lambda deployment
-      {
-        Sid    = "ECRImageRead"
-        Effect = "Allow"
-        Action = [
-          "ecr:DescribeImages",
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ]
-        Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
-      },
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.app}-${var.env}-hoist-lambda-terraform-compute"
+    Module      = "hoist_lambda"
+    Application = var.app
+    Environment = var.env
+    Description = "Compute and networking policy for hoist_lambda module"
+  }
+}
+
+# Storage policy (S3)
+resource "aws_iam_policy" "storage" {
+  name        = "${var.app}-${var.env}-hoist-lambda-tf-storage"
+  description = "Storage permissions for hoist_lambda module"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
       # S3 bucket management - allow any bucket with the app-env prefix
       {
         Sid    = "S3BucketManagement"
@@ -335,7 +374,19 @@ resource "aws_iam_policy" "meta" {
           "s3:ListBucket",
           "s3:GetBucket*",
           "s3:PutBucket*",
-          "s3:DeleteBucket*"
+          "s3:DeleteBucket*",
+          "s3:GetAccelerateConfiguration",
+          "s3:GetLifecycleConfiguration",
+          "s3:GetReplicationConfiguration",
+          "s3:GetEncryptionConfiguration",
+          "s3:GetBucketVersioning",
+          "s3:GetBucketLogging",
+          "s3:GetBucketNotification",
+          "s3:GetBucketPolicy",
+          "s3:GetBucketPublicAccessBlock",
+          "s3:GetBucketCors",
+          "s3:GetBucketWebsite",
+          "s3:GetBucketTagging"
         ]
         Resource = "arn:aws:s3:::${var.app}-${var.env}*"
       },
@@ -351,20 +402,31 @@ resource "aws_iam_policy" "meta" {
           "s3:AbortMultipartUpload"
         ]
         Resource = "arn:aws:s3:::${var.app}-${var.env}*/*"
-      },
+      }
     ]
   })
 
   tags = {
-    Name        = "${var.app}-${var.env}-hoist-lambda-terraform"
+    Name        = "${var.app}-${var.env}-hoist-lambda-terraform-storage"
     Module      = "hoist_lambda"
     Application = var.app
     Environment = var.env
-    Description = "Terraform execution policy for hoist_lambda module"
+    Description = "Storage policy for hoist_lambda module"
   }
 }
 
-resource "aws_iam_role_policy_attachment" "tfstate_access" {
-    role       = var.ci_assume_role_name
-    policy_arn = aws_iam_policy.meta.arn
+# Policy attachments
+resource "aws_iam_role_policy_attachment" "ecr_infrastructure" {
+  role       = var.ci_assume_role_name
+  policy_arn = aws_iam_policy.ecr_infrastructure.arn
+}
+
+resource "aws_iam_role_policy_attachment" "compute_networking" {
+  role       = var.ci_assume_role_name
+  policy_arn = aws_iam_policy.compute_networking.arn
+}
+
+resource "aws_iam_role_policy_attachment" "storage" {
+  role       = var.ci_assume_role_name
+  policy_arn = aws_iam_policy.storage.arn
 }
