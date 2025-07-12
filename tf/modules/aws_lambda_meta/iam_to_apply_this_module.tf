@@ -190,7 +190,8 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "iam:ListAttachedRolePolicies",
           "iam:PutRolePolicy",
           "iam:GetRolePolicy",
-          "iam:DeleteRolePolicy"
+          "iam:DeleteRolePolicy",
+          "iam:PassRole"
         ]
         Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
       },
@@ -271,24 +272,49 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "arn:aws:apigateway:*::/tags/*"
         ]
       },
-      # API Gateway write operations - scoped by ABAC to our naming convention
+      # API Gateway creation - unrestricted because CreateRestApi has no usable condition keys
       {
-        Sid    = "APIGatewayWrite"
+        Sid    = "APIGatewayCreate"
         Effect = "Allow"
         Action = [
-          "apigateway:POST",
+          "apigateway:POST"
+        ]
+        Resource = [
+          "arn:aws:apigateway:*::/restapis"
+        ]
+      },
+      # API Gateway modify/delete operations - scoped by ABAC to our naming convention
+      {
+        Sid    = "APIGatewayModify"
+        Effect = "Allow"
+        Action = [
           "apigateway:PUT",
           "apigateway:DELETE",
           "apigateway:PATCH"
         ]
         Resource = [
-          "arn:aws:apigateway:*::/restapis",
           "arn:aws:apigateway:*::/restapis/*",
           "arn:aws:apigateway:*::/tags/*"
         ]
         Condition = {
           "ForAnyValue:StringLikeIfExists" = {
             "apigateway:Request/ApiName" = "${var.app}-${var.env}*",
+            "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
+          }
+        }
+      },
+      # API Gateway sub-resource creation (methods, resources, etc.) - allow on our APIs
+      {
+        Sid    = "APIGatewaySubResources"
+        Effect = "Allow"
+        Action = [
+          "apigateway:POST"
+        ]
+        Resource = [
+          "arn:aws:apigateway:*::/restapis/*"
+        ]
+        Condition = {
+          "ForAnyValue:StringLikeIfExists" = {
             "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
           }
         }
