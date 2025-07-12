@@ -128,9 +128,9 @@ resource "aws_iam_policy" "meta" {
           "codedeploy:DeleteDeploymentConfig"
         ]
         Resource = [
-          "arn:aws:codedeploy:*:*:application:${var.app}-${var.env}",
-          "arn:aws:codedeploy:*:*:deploymentgroup:${var.app}-${var.env}/*",
-          "arn:aws:codedeploy:*:*:deploymentconfig:${var.app}-${var.env}-*"
+          "arn:aws:codedeploy:*:*:application:${var.app}-${var.env}*",
+          "arn:aws:codedeploy:*:*:deploymentgroup:${var.app}-${var.env}*/*",
+          "arn:aws:codedeploy:*:*:deploymentconfig:${var.app}-${var.env}*"
         ]
       },
       # Lambda function and execution role management
@@ -151,7 +151,8 @@ resource "aws_iam_policy" "meta" {
           "lambda:DeleteAlias",
           "lambda:AddPermission",
           "lambda:RemovePermission",
-          "lambda:GetPolicy"
+          "lambda:GetPolicy",
+          "lambda:ListVersionsByFunction"
         ]
         Resource = [
           "arn:aws:lambda:*:*:function:${var.app}-${var.env}",
@@ -238,7 +239,7 @@ resource "aws_iam_policy" "meta" {
         ]
         Resource = "arn:aws:iam::*:role/aws-service-role/lambda.amazonaws.com/AWSServiceRoleForLambda"
       },
-      # API Gateway management - scoped to this app/env only by naming pattern
+      # API Gateway management - scoped to this app/env only by naming pattern using ABAC
       {
         Sid    = "APIGatewayManagement"
         Effect = "Allow"
@@ -255,8 +256,29 @@ resource "aws_iam_policy" "meta" {
           "arn:aws:apigateway:*::/tags/*"
         ]
         Condition = {
-          "ForAnyValue:StringLike" = {
-            "apigateway:resource/restapi-name" = "${var.app}-${var.env}*"
+          "ForAnyValue:StringLikeIfExists" = {
+            "apigateway:Request/ApiName" = "${var.app}-${var.env}*"
+          }
+        }
+      },
+      {
+        Sid    = "APIGatewayManagementResource"
+        Effect = "Allow" 
+        Action = [
+          "apigateway:GET",
+          "apigateway:POST",
+          "apigateway:PUT",
+          "apigateway:DELETE",
+          "apigateway:PATCH"
+        ]
+        Resource = [
+          "arn:aws:apigateway:*::/restapis",
+          "arn:aws:apigateway:*::/restapis/*",
+          "arn:aws:apigateway:*::/tags/*"
+        ]
+        Condition = {
+          "ForAnyValue:StringLikeIfExists" = {
+            "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
           }
         }
       },
