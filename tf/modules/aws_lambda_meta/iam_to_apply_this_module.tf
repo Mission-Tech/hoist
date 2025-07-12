@@ -27,7 +27,10 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "ecr:GetLifecyclePolicy",
           "ecr:DeleteLifecyclePolicy",
           "ecr:DeleteRepository",
-          "ecr:PutImageTagMutability"
+          "ecr:PutImageTagMutability",
+          "ecr:SetRepositoryPolicy",
+          "ecr:GetRepositoryPolicy",
+          "ecr:DeleteRepositoryPolicy"
         ]
         Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
       },
@@ -303,21 +306,18 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           }
         }
       },
-      # API Gateway sub-resource creation (methods, resources, etc.) - allow on our APIs
+      # API Gateway sub-resource creation (methods, resources, integrations, etc.) - allow on our APIs
+      # Note: Condition keys are not available for all sub-resource operations, so we allow broader access
       {
         Sid    = "APIGatewaySubResources"
         Effect = "Allow"
         Action = [
-          "apigateway:POST"
+          "apigateway:POST",
+          "apigateway:PUT"
         ]
         Resource = [
           "arn:aws:apigateway:*::/restapis/*"
         ]
-        Condition = {
-          "ForAnyValue:StringLikeIfExists" = {
-            "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
-          }
-        }
       },
     ]
   })
