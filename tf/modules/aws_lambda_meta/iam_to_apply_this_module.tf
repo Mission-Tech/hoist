@@ -26,7 +26,8 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "ecr:PutLifecyclePolicy",
           "ecr:GetLifecyclePolicy",
           "ecr:DeleteLifecyclePolicy",
-          "ecr:DeleteRepository"
+          "ecr:DeleteRepository",
+          "ecr:PutImageTagMutability"
         ]
         Resource = "arn:aws:ecr:*:*:repository/${var.app}-${var.env}*"
       },
@@ -337,10 +338,13 @@ resource "aws_iam_policy" "compute_networking" {
           "ec2:CreateTags",
           "ec2:DeleteTags"
         ]
-        Resource = "*"
+        Resource = [
+          "arn:aws:ec2:*:*:security-group/*",
+          "arn:aws:ec2:*:*:vpc/*"
+        ]
         Condition = {
           StringLike = {
-            "aws:RequestTag/Name": "${var.app}-${var.env}*"
+            "aws:RequestedRegion": "*"
           }
         }
       }
@@ -386,7 +390,8 @@ resource "aws_iam_policy" "storage" {
           "s3:GetBucketPublicAccessBlock",
           "s3:GetBucketCors",
           "s3:GetBucketWebsite",
-          "s3:GetBucketTagging"
+          "s3:GetBucketTagging",
+          "s3:PutEncryptionConfiguration"
         ]
         Resource = "arn:aws:s3:::${var.app}-${var.env}*"
       },
