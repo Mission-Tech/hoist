@@ -73,6 +73,34 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+# ECR access policy for Lambda execution role
+resource "aws_iam_role_policy" "lambda_ecr_access" {
+  name = "${var.app}-${var.env}-lambda-ecr-access"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = aws_ecr_repository.lambda_repository.arn
+      }
+    ]
+  })
+}
+
 # Data source to get the most recent image
 data "aws_ecr_image" "latest" {
   repository_name = aws_ecr_repository.lambda_repository.name
