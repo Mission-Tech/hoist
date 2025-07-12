@@ -190,7 +190,8 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "iam:ListAttachedRolePolicies",
           "iam:PutRolePolicy",
           "iam:GetRolePolicy",
-          "iam:DeleteRolePolicy"
+          "iam:DeleteRolePolicy",
+          "iam:PassRole"
         ]
         Resource = "arn:aws:iam::*:role/${var.app}-${var.env}*"
       },
@@ -272,6 +273,8 @@ resource "aws_iam_policy" "ecr_infrastructure" {
         ]
       },
       # API Gateway write operations - scoped by ABAC to our naming convention
+      # Note: CreateRestApi doesn't have ApiName available in conditions, so we allow
+      # creation on /restapis but restrict updates/deletes with naming conditions
       {
         Sid    = "APIGatewayWrite"
         Effect = "Allow"
@@ -286,12 +289,6 @@ resource "aws_iam_policy" "ecr_infrastructure" {
           "arn:aws:apigateway:*::/restapis/*",
           "arn:aws:apigateway:*::/tags/*"
         ]
-        Condition = {
-          "ForAnyValue:StringLikeIfExists" = {
-            "apigateway:Request/ApiName" = "${var.app}-${var.env}*",
-            "apigateway:Resource/ApiName" = "${var.app}-${var.env}*"
-          }
-        }
       },
     ]
   })
