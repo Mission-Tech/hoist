@@ -127,8 +127,9 @@ data "archive_file" "trigger_lambda" {
   output_path = "${path.module}/trigger_lambda.zip"
 }
 
-# EventBridge rule for ECR push events
+# EventBridge rule for ECR push events (only for dev environment)
 resource "aws_cloudwatch_event_rule" "ecr_push" {
+  count       = var.env == "dev" ? 1 : 0
   name        = "${var.app}-${var.env}-ecr-push"
   description = "Trigger CodeDeploy on ECR push"
 
@@ -150,20 +151,22 @@ resource "aws_cloudwatch_event_rule" "ecr_push" {
   }
 }
 
-# EventBridge target
+# EventBridge target (only for dev environment)
 resource "aws_cloudwatch_event_target" "trigger_lambda" {
-  rule      = aws_cloudwatch_event_rule.ecr_push.name
+  count     = var.env == "dev" ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.ecr_push[0].name
   target_id = "TriggerLambda"
   arn       = aws_lambda_function.trigger_codedeploy.arn
 }
 
-# Permission for EventBridge to invoke Lambda
+# Permission for EventBridge to invoke Lambda (only for dev environment)
 resource "aws_lambda_permission" "eventbridge" {
+  count         = var.env == "dev" ? 1 : 0
   statement_id  = "AllowEventBridgeInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.trigger_codedeploy.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.ecr_push.arn
+  source_arn    = aws_cloudwatch_event_rule.ecr_push[0].arn
 }
 
 # Data sources

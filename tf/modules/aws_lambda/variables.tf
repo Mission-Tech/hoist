@@ -4,7 +4,7 @@ variable "app" {
 }
 
 variable "env" {
-  description = "Name of the environment (e.g., dev, staging, prod)"
+  description = "Name of the environment (dev or prod)"
   type        = string
 }
 
@@ -35,5 +35,17 @@ variable "lambda_memory_size" {
   description = "Lambda function memory size in MB"
   type        = number
   default     = 512
+}
+
+variable "dev_account_id" {
+  description = "AWS account ID for dev environment (used in prod to read dev deployments)"
+  type        = string
+  default     = null
+}
+
+variable "prod_account_id" {
+  description = "AWS account ID for prod environment (used in dev to create cross-account role)"
+  type        = string
+  default     = null
 }
 
