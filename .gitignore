@@ -96,4 +96,7 @@ id_rsa.pub
 # Certificates
 *.crt
 *.cer
-*.p12
+*.p12*.zip
+
+# Lambda deployment packages
+*.zip

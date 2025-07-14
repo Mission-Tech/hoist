@@ -160,6 +160,10 @@ resource "aws_lambda_permission" "cleanup_eventbridge" {
 # Archive for cleanup Lambda
 data "archive_file" "cleanup_lambda" {
   type        = "zip"
-  source_dir  = "${path.module}/cleanup_lambda"
   output_path = "${path.module}/cleanup_lambda.zip"
+  
+  source {
+    content  = file("${path.module}/cleanup_lambda/index.py")
+    filename = "index.py"
+  }
 }

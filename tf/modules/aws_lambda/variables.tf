@@ -19,12 +19,6 @@ variable "error_rate_threshold" {
   default     = 10
 }
 
-variable "ecr_image_tag_trigger" {
-  description = "ECR image tag that triggers deployments (e.g., 'latest', 'prod')"
-  type        = string
-  default     = "latest"
-}
-
 variable "lambda_timeout" {
   description = "Lambda function timeout in seconds"
   type        = number
@@ -37,15 +31,8 @@ variable "lambda_memory_size" {
   default     = 512
 }
 
-variable "dev_account_id" {
-  description = "AWS account ID for dev environment (used in prod to read dev deployments)"
+variable "tools_account_id" {
+  description = "AWS account ID for tools environment (used to create cross-account role for pipeline access)"
   type        = string
-  default     = null
-}
-
-variable "prod_account_id" {
-  description = "AWS account ID for prod environment (used in dev to create cross-account role)"
-  type        = string
-  default     = null
 }
 
