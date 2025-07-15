@@ -446,6 +446,38 @@ resource "aws_iam_policy" "storage" {
   }
 }
 
+# SSM policy for reading configuration parameters
+resource "aws_iam_policy" "ssm_parameters" {
+  name        = "${var.app}-${var.env}-hoist-lambda-tf-ssm"
+  description = "SSM parameter read permissions for hoist_lambda module"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # Allow reading core infrastructure SSM parameters
+      {
+        Sid    = "SSMParameterRead"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = [
+          "arn:aws:ssm:*:*:parameter/coreinfra/shared/*"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.app}-${var.env}-hoist-lambda-terraform-ssm"
+    Module      = "hoist_lambda"
+    Application = var.app
+    Environment = var.env
+    Description = "SSM parameter read policy for hoist_lambda module"
+  }
+}
+
 # Policy attachments
 resource "aws_iam_role_policy_attachment" "ecr_infrastructure" {
   role       = var.ci_assume_role_name
@@ -460,4 +492,9 @@ resource "aws_iam_role_policy_attachment" "compute_networking" {
 resource "aws_iam_role_policy_attachment" "storage" {
   role       = var.ci_assume_role_name
   policy_arn = aws_iam_policy.storage.arn
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_parameters" {
+  role       = var.ci_assume_role_name
+  policy_arn = aws_iam_policy.ssm_parameters.arn
 }
