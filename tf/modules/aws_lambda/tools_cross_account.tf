@@ -4,7 +4,7 @@ locals {
   tools_cross_account_role_name = "${var.app}-${var.env}-tools-access"
   tools_codepipeline_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-codepipeline"
   tools_prepare_deployment_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-prepare-deployment"
-  tools_sync_image_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-sync-image"
+  tools_deploy_from_pipeline_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-deploy-from-pipeline"
 }
 
 # IAM role for tools account to access this environment
@@ -21,7 +21,7 @@ resource "aws_iam_role" "tools_access" {
           AWS = [
             local.tools_codepipeline_role_arn,
             local.tools_prepare_deployment_role_arn,
-            local.tools_sync_image_role_arn
+            local.tools_deploy_from_pipeline_role_arn
           ]
         }
       }
@@ -61,35 +61,14 @@ resource "aws_iam_role_policy" "tools_access" {
           "arn:aws:codedeploy:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:deploymentconfig:CodeDeployDefault.LambdaAllAtOnce"
         ]
       },
-      # Lambda permissions for updating functions and managing versions
+      # Lambda permissions for invoking deploy function
       {
         Effect = "Allow"
         Action = [
-          "lambda:GetFunction",
-          "lambda:GetFunctionConfiguration",
-          "lambda:UpdateFunctionCode",
-          "lambda:PublishVersion",
-          "lambda:GetAlias",
-          "lambda:UpdateAlias"
+          "lambda:InvokeFunction"
         ]
         Resource = [
-          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}",
-          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}:*"
-        ]
-      },
-      # S3 permissions for accessing pipeline artifacts
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket",
-          "s3:GetBucketVersioning",
-          "s3:GetObject",
-          "s3:GetObjectVersion",
-          "s3:GetObjectVersionTagging"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.app}-${var.tools_account_id}-tools-pipeline-artifacts",
-          "arn:aws:s3:::${var.app}-${var.tools_account_id}-tools-pipeline-artifacts/*"
+          aws_lambda_function.deploy.arn
         ]
       }
     ]

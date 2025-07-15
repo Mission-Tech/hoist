@@ -9,6 +9,26 @@ resource "aws_codepipeline" "deployment_pipeline" {
     type     = "S3"
   }
 
+  variable {
+    name = "DEV_IMAGE_TAG"
+    default_value = "latest"
+  }
+
+  variable {
+    name = "DEV_IMAGE_DIGEST"
+    default_value = ""
+  }
+
+  variable {
+    name = "PROD_IMAGE_TAG"
+    default_value = "latest"
+  }
+
+  variable {
+    name = "PROD_IMAGE_DIGEST"
+    default_value = ""
+  }
+
   stage {
     name = "Source"
 
@@ -42,39 +62,28 @@ resource "aws_codepipeline" "deployment_pipeline" {
   }
 
   stage {
-    name = "SyncDevImage"
+    name = "DeployToDev"
 
     action {
-      name            = "SyncImage"
+      name            = "Deploy"
       category        = "Invoke"
       owner           = "AWS"
       provider        = "Lambda"
       version         = "1"
       input_artifacts = ["dev_source"]
+      region          = var.dev_region
 
       configuration = {
-        FunctionName   = aws_lambda_function.sync_image.function_name
-        UserParameters = "dev"
-      }
-    }
-  }
-
-  stage {
-    name = "DeployToDev"
-
-    action {
-      name             = "Deploy"
-      category         = "Deploy"
-      owner            = "AWS"
-      provider         = "CodeDeploy"
-      version          = "1"
-      input_artifacts  = ["dev_source"]
-      region           = var.dev_region
-      role_arn         = local.dev_tools_cross_account_role_arn
-
-      configuration = {
-        ApplicationName     = local.dev_codedeploy_app_name
-        DeploymentGroupName = local.dev_deployment_group_name
+        FunctionName   = aws_lambda_function.deploy_from_pipeline.function_name
+        UserParameters = jsonencode({
+          "accountId" : var.dev_account_id,
+          "region" : var.dev_region,
+          "repositoryName" : local.dev_ecr_repository_name,
+          "crossAccountRoleArn" : local.dev_tools_cross_account_role_arn,
+          "deployLambdaName" : local.dev_deploy_lambda_name,
+          "imageTag" : "#{variables.DEV_IMAGE_TAG}",
+          "imageDigest" : "#{variables.DEV_IMAGE_DIGEST}"
+        })
       }
     }
   }
@@ -97,39 +106,28 @@ resource "aws_codepipeline" "deployment_pipeline" {
   }
 
   stage {
-    name = "SyncProdImage"
+    name = "DeployToProd"
 
     action {
-      name            = "SyncImage"
+      name            = "Deploy"
       category        = "Invoke"
       owner           = "AWS"
       provider        = "Lambda"
       version         = "1"
-      input_artifacts = ["dev_source"]
+      input_artifacts = ["prod_source"]
+      region          = var.prod_region
 
       configuration = {
-        FunctionName   = aws_lambda_function.sync_image.function_name
-        UserParameters = "prod"
-      }
-    }
-  }
-
-  stage {
-    name = "DeployToProd"
-
-    action {
-      name             = "Deploy"
-      category         = "Deploy"
-      owner            = "AWS"
-      provider         = "CodeDeploy"
-      version          = "1"
-      input_artifacts  = ["prod_source"]
-      region           = var.prod_region
-      role_arn         = local.prod_tools_cross_account_role_arn
-
-      configuration = {
-        ApplicationName     = local.prod_codedeploy_app_name
-        DeploymentGroupName = local.prod_deployment_group_name
+        FunctionName   = aws_lambda_function.deploy_from_pipeline.function_name
+        UserParameters = jsonencode({
+          "accountId" : var.prod_account_id,
+          "region" : var.prod_region,
+          "repositoryName" : local.prod_ecr_repository_name,
+          "crossAccountRoleArn" : local.prod_tools_cross_account_role_arn,
+          "deployLambdaName" : local.prod_deploy_lambda_name,
+          "imageTag" : "#{variables.PROD_IMAGE_TAG}",
+          "imageDigest" : "#{variables.PROD_IMAGE_DIGEST}"
+        })
       }
     }
   }

@@ -51,16 +51,6 @@ resource "aws_iam_role_policy" "prepare_deployment_lambda" {
       {
         Effect = "Allow"
         Action = [
-          "s3:PutObject",
-          "s3:PutObjectAcl"
-        ]
-        Resource = [
-          "${aws_s3_bucket.pipeline_artifacts.arn}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
           "codepipeline:StartPipelineExecution"
         ]
         Resource = aws_codepipeline.deployment_pipeline.arn

@@ -110,14 +110,14 @@ resource "aws_iam_role_policy" "codepipeline" {
           local.prod_tools_cross_account_role_arn
         ]
       },
-      # Lambda permissions for sync image actions
+      # Lambda permissions for deploy-from-pipeline function
       {
         Effect = "Allow"
         Action = [
           "lambda:InvokeFunction"
         ]
         Resource = [
-          aws_lambda_function.sync_image.arn
+          aws_lambda_function.deploy_from_pipeline.arn
         ]
       }
     ]

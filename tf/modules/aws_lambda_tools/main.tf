@@ -19,12 +19,16 @@ locals {
   dev_codedeploy_app_name = "${var.app}-dev"
   dev_deployment_group_name = "${var.app}-dev"
   dev_lambda_function_name = "${var.app}-dev"
+  dev_manual_deploy_lambda_name = "${var.app}-dev-manual-deploy"
+  dev_deploy_lambda_name = "${var.app}-dev-deploy"
   dev_tools_cross_account_role_arn = "arn:aws:iam::${var.dev_account_id}:role/${var.app}-dev-tools-access"
   
   prod_ecr_repository_name = "${var.app}-prod"
   prod_codedeploy_app_name = "${var.app}-prod"
   prod_deployment_group_name = "${var.app}-prod"
   prod_lambda_function_name = "${var.app}-prod"
+  prod_manual_deploy_lambda_name = "${var.app}-prod-manual-deploy"
+  prod_deploy_lambda_name = "${var.app}-prod-deploy"
   prod_tools_cross_account_role_arn = "arn:aws:iam::${var.prod_account_id}:role/${var.app}-prod-tools-access"
 }
 
