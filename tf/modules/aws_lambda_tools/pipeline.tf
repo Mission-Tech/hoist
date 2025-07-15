@@ -42,6 +42,24 @@ resource "aws_codepipeline" "deployment_pipeline" {
   }
 
   stage {
+    name = "SyncDevImage"
+
+    action {
+      name            = "SyncImage"
+      category        = "Invoke"
+      owner           = "AWS"
+      provider        = "Lambda"
+      version         = "1"
+      input_artifacts = ["dev_source"]
+
+      configuration = {
+        FunctionName   = aws_lambda_function.sync_image.function_name
+        UserParameters = "dev"
+      }
+    }
+  }
+
+  stage {
     name = "DeployToDev"
 
     action {
@@ -74,6 +92,24 @@ resource "aws_codepipeline" "deployment_pipeline" {
       configuration = {
         NotificationArn = aws_sns_topic.manual_approval.arn
         CustomData      = "Please review the dev deployment and approve for production deployment"
+      }
+    }
+  }
+
+  stage {
+    name = "SyncProdImage"
+
+    action {
+      name            = "SyncImage"
+      category        = "Invoke"
+      owner           = "AWS"
+      provider        = "Lambda"
+      version         = "1"
+      input_artifacts = ["dev_source"]
+
+      configuration = {
+        FunctionName   = aws_lambda_function.sync_image.function_name
+        UserParameters = "prod"
       }
     }
   }

@@ -4,6 +4,7 @@ locals {
   tools_cross_account_role_name = "${var.app}-${var.env}-tools-access"
   tools_codepipeline_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-codepipeline"
   tools_prepare_deployment_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-prepare-deployment"
+  tools_sync_image_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-sync-image"
 }
 
 # IAM role for tools account to access this environment
@@ -19,7 +20,8 @@ resource "aws_iam_role" "tools_access" {
         Principal = {
           AWS = [
             local.tools_codepipeline_role_arn,
-            local.tools_prepare_deployment_role_arn
+            local.tools_prepare_deployment_role_arn,
+            local.tools_sync_image_role_arn
           ]
         }
       }
