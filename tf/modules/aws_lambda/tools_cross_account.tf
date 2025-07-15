@@ -1,10 +1,16 @@
 # Cross-account role for tools account to manage this environment
 
+# Get tools account ID from Parameter Store
+data "aws_ssm_parameter" "tools_account_id" {
+  name = "/coreinfra/shared/tools_account_id"
+}
+
 locals {
+  tools_account_id = nonsensitive(data.aws_ssm_parameter.tools_account_id.value)
   tools_cross_account_role_name = "${var.app}-${var.env}-tools-access"
-  tools_codepipeline_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-codepipeline"
-  tools_prepare_deployment_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-prepare-deployment"
-  tools_deploy_from_pipeline_role_arn = "arn:aws:iam::${var.tools_account_id}:role/${var.app}-tools-deploy-from-pipeline"
+  tools_codepipeline_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-codepipeline"
+  tools_prepare_deployment_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-prepare-deployment"
+  tools_deploy_from_pipeline_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-deploy-from-pipeline"
 }
 
 # IAM role for tools account to access this environment

@@ -76,7 +76,7 @@ resource "aws_codepipeline" "deployment_pipeline" {
       configuration = {
         FunctionName   = aws_lambda_function.deploy_from_pipeline.function_name
         UserParameters = jsonencode({
-          "accountId" : var.dev_account_id,
+          "accountId" : local.dev_account_id,
           "region" : var.dev_region,
           "repositoryName" : local.dev_ecr_repository_name,
           "crossAccountRoleArn" : local.dev_tools_cross_account_role_arn,
@@ -120,7 +120,7 @@ resource "aws_codepipeline" "deployment_pipeline" {
       configuration = {
         FunctionName   = aws_lambda_function.deploy_from_pipeline.function_name
         UserParameters = jsonencode({
-          "accountId" : var.prod_account_id,
+          "accountId" : local.prod_account_id,
           "region" : var.prod_region,
           "repositoryName" : local.prod_ecr_repository_name,
           "crossAccountRoleArn" : local.prod_tools_cross_account_role_arn,

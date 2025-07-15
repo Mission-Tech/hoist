@@ -2,10 +2,21 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
+# Get account IDs from Parameter Store
+data "aws_ssm_parameter" "dev_account_id" {
+  name = "/coreinfra/shared/dev_account_id"
+}
+
+data "aws_ssm_parameter" "prod_account_id" {
+  name = "/coreinfra/shared/prod_account_id"
+}
+
 # Locals for computed values
 locals {
   tools_account_id = data.aws_caller_identity.current.account_id
   region = data.aws_region.current.name
+  dev_account_id = nonsensitive(data.aws_ssm_parameter.dev_account_id.value)
+  prod_account_id = nonsensitive(data.aws_ssm_parameter.prod_account_id.value)
   
   # Pipeline name following existing pattern
   pipeline_name = "${var.app}-tools-pipeline"
@@ -21,7 +32,7 @@ locals {
   dev_lambda_function_name = "${var.app}-dev"
   dev_manual_deploy_lambda_name = "${var.app}-dev-manual-deploy"
   dev_deploy_lambda_name = "${var.app}-dev-deploy"
-  dev_tools_cross_account_role_arn = "arn:aws:iam::${var.dev_account_id}:role/${var.app}-dev-tools-access"
+  dev_tools_cross_account_role_arn = "arn:aws:iam::${local.dev_account_id}:role/${var.app}-dev-tools-access"
   
   prod_ecr_repository_name = "${var.app}-prod"
   prod_codedeploy_app_name = "${var.app}-prod"
@@ -29,7 +40,7 @@ locals {
   prod_lambda_function_name = "${var.app}-prod"
   prod_manual_deploy_lambda_name = "${var.app}-prod-manual-deploy"
   prod_deploy_lambda_name = "${var.app}-prod-deploy"
-  prod_tools_cross_account_role_arn = "arn:aws:iam::${var.prod_account_id}:role/${var.app}-prod-tools-access"
+  prod_tools_cross_account_role_arn = "arn:aws:iam::${local.prod_account_id}:role/${var.app}-prod-tools-access"
 }
 
 # S3 bucket for pipeline artifacts
@@ -88,8 +99,8 @@ resource "aws_s3_bucket_policy" "pipeline_artifacts" {
           AWS = [
             local.dev_tools_cross_account_role_arn,
             local.prod_tools_cross_account_role_arn,
-            "arn:aws:iam::${var.dev_account_id}:role/${var.app}-dev-codedeploy",
-            "arn:aws:iam::${var.prod_account_id}:role/${var.app}-prod-codedeploy"
+            "arn:aws:iam::${local.dev_account_id}:role/${var.app}-dev-codedeploy",
+            "arn:aws:iam::${local.prod_account_id}:role/${var.app}-prod-codedeploy"
           ]
         }
         Action = [

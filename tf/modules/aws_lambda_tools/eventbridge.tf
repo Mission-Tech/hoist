@@ -7,7 +7,7 @@ resource "aws_cloudwatch_event_bus_policy" "allow_dev_put" {
     Statement = [{
       Sid       = "AllowDevToPut"
       Effect    = "Allow"
-      Principal = { AWS = "arn:aws:iam::${var.dev_account_id}:root" }
+      Principal = { AWS = "arn:aws:iam::${local.dev_account_id}:root" }
       Action    = "events:PutEvents"
       Resource  = "arn:aws:events:${local.region}:${local.tools_account_id}:event-bus/default"
     }]
@@ -20,7 +20,7 @@ resource "aws_cloudwatch_event_rule" "dev_ecr_push" {
   description = "Dev → Tools: ECR push"
 
   event_pattern = jsonencode({
-    account     = [var.dev_account_id]
+    account     = [local.dev_account_id]
     source      = ["aws.ecr"]
     detail-type = ["ECR Image Action"]
     detail      = { 

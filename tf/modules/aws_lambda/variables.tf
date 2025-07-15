@@ -31,8 +31,4 @@ variable "lambda_memory_size" {
   default     = 512
 }
 
-variable "tools_account_id" {
-  description = "AWS account ID for tools environment (used to create cross-account role for pipeline access)"
-  type        = string
-}
 

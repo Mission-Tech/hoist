@@ -39,7 +39,7 @@ resource "aws_iam_role_policy" "eventbridge_cross_account" {
           "events:PutEvents"
         ]
         Resource = [
-          "arn:aws:events:${data.aws_region.current.name}:${var.tools_account_id}:event-bus/default"
+          "arn:aws:events:${data.aws_region.current.name}:${local.tools_account_id}:event-bus/default"
         ]
       }
     ]
@@ -72,6 +72,6 @@ resource "aws_cloudwatch_event_rule" "ecr_push_forward" {
 resource "aws_cloudwatch_event_target" "to_tools_bus" {
   rule      = aws_cloudwatch_event_rule.ecr_push_forward.name
   target_id = "ToolsBus"
-  arn       = "arn:aws:events:${data.aws_region.current.name}:${var.tools_account_id}:event-bus/default"
+  arn       = "arn:aws:events:${data.aws_region.current.name}:${local.tools_account_id}:event-bus/default"
   role_arn  = aws_iam_role.eventbridge_cross_account.arn
 }

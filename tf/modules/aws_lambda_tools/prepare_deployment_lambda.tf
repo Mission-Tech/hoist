@@ -89,8 +89,8 @@ resource "aws_lambda_function" "prepare_deployment" {
       PROD_CROSS_ACCOUNT_ROLE = local.prod_tools_cross_account_role_arn
       DEV_REGION = var.dev_region
       PROD_REGION = var.prod_region
-      DEV_ACCOUNT_ID = var.dev_account_id
-      PROD_ACCOUNT_ID = var.prod_account_id
+      DEV_ACCOUNT_ID = local.dev_account_id
+      PROD_ACCOUNT_ID = local.prod_account_id
       APP_NAME = var.app
     }
   }

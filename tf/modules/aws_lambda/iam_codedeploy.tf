@@ -82,8 +82,8 @@ resource "aws_iam_role_policy" "codedeploy_s3" {
           "s3:GetObjectVersionTagging"
         ]
         Resource = [
-          "arn:aws:s3:::${var.app}-${var.tools_account_id}-tools-pipeline-artifacts",
-          "arn:aws:s3:::${var.app}-${var.tools_account_id}-tools-pipeline-artifacts/*"
+          "arn:aws:s3:::${var.app}-${local.tools_account_id}-tools-pipeline-artifacts",
+          "arn:aws:s3:::${var.app}-${local.tools_account_id}-tools-pipeline-artifacts/*"
         ]
       }
     ]
