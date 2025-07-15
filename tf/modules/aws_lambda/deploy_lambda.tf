@@ -1,11 +1,11 @@
 # Local variables
 locals {
-  trigger_lambda_name = "${var.app}-${var.env}-ecr-trigger"
+  deploy_lambda_name = "${var.app}-${var.env}-deploy"
 }
 
-# IAM role for the trigger Lambda function
-resource "aws_iam_role" "trigger_lambda" {
-  name = local.trigger_lambda_name
+# IAM role for the deploy Lambda function
+resource "aws_iam_role" "deploy_lambda" {
+  name = local.deploy_lambda_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -24,14 +24,14 @@ resource "aws_iam_role" "trigger_lambda" {
     Application = var.app
     Environment = var.env
     Module      = "aws_lambda"
-    Description = "Role for ECR push trigger Lambda"
+    Description = "Role for deploy Lambda"
   }
 }
 
-# Policy for trigger Lambda to create CodeDeploy deployments
-resource "aws_iam_role_policy" "trigger_lambda" {
-  name = local.trigger_lambda_name
-  role = aws_iam_role.trigger_lambda.id
+# Policy for deploy Lambda to create CodeDeploy deployments
+resource "aws_iam_role_policy" "deploy_lambda" {
+  name = local.deploy_lambda_name
+  role = aws_iam_role.deploy_lambda.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -44,8 +44,8 @@ resource "aws_iam_role_policy" "trigger_lambda" {
           "logs:PutLogEvents"
         ]
         Resource = [
-          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.trigger_lambda_name}",
-          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.trigger_lambda_name}:*"
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.deploy_lambda_name}",
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.deploy_lambda_name}:*"
         ]
       },
       {
@@ -93,14 +93,14 @@ resource "aws_iam_role_policy" "trigger_lambda" {
 }
 
 # Lambda function to trigger CodeDeploy
-resource "aws_lambda_function" "trigger_codedeploy" {
-  filename         = data.archive_file.trigger_lambda.output_path
-  function_name    = local.trigger_lambda_name
-  role            = aws_iam_role.trigger_lambda.arn
+resource "aws_lambda_function" "deploy" {
+  filename         = data.archive_file.deploy_lambda.output_path
+  function_name    = local.deploy_lambda_name
+  role            = aws_iam_role.deploy_lambda.arn
   handler         = "index.handler"
   runtime         = "python3.11"
   timeout         = 60
-  source_code_hash = data.archive_file.trigger_lambda.output_base64sha256
+  source_code_hash = data.archive_file.deploy_lambda.output_base64sha256
 
   environment {
     variables = {
@@ -116,56 +116,15 @@ resource "aws_lambda_function" "trigger_codedeploy" {
     Application = var.app
     Environment = var.env
     Module      = "aws_lambda"
-    Description = "Triggers CodeDeploy on ECR push"
+    Description = "Triggers CodeDeploy deployments"
   }
 }
 
 # Archive the Lambda function
-data "archive_file" "trigger_lambda" {
+data "archive_file" "deploy_lambda" {
   type        = "zip"
-  source_dir  = "${path.module}/trigger_lambda"
-  output_path = "${path.module}/trigger_lambda.zip"
+  source_dir  = "${path.module}/deploy_lambda"
+  output_path = "${path.module}/deploy_lambda.zip"
 }
 
-# EventBridge rule for ECR push events
-resource "aws_cloudwatch_event_rule" "ecr_push" {
-  name        = "${var.app}-${var.env}-ecr-push"
-  description = "Trigger CodeDeploy on ECR push"
-
-  event_pattern = jsonencode({
-    source      = ["aws.ecr"]
-    detail-type = ["ECR Image Action"]
-    detail = {
-      action-type     = ["PUSH"]
-      repository-name = [aws_ecr_repository.lambda_repository.name]
-      result          = ["SUCCESS"]
-    }
-  })
-
-  tags = {
-    Application = var.app
-    Environment = var.env
-    Module      = "aws_lambda"
-    Description = "ECR push event rule"
-  }
-}
-
-# EventBridge target
-resource "aws_cloudwatch_event_target" "trigger_lambda" {
-  rule      = aws_cloudwatch_event_rule.ecr_push.name
-  target_id = "TriggerLambda"
-  arn       = aws_lambda_function.trigger_codedeploy.arn
-}
-
-# Permission for EventBridge to invoke Lambda
-resource "aws_lambda_permission" "eventbridge" {
-  statement_id  = "AllowEventBridgeInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.trigger_codedeploy.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.ecr_push.arn
-}
-
-# Data sources
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
+# EventBridge rule and automatic triggers removed - deploy_lambda is now only called by pipeline or manual_deploy

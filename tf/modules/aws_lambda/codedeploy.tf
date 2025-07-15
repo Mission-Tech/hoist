@@ -1,6 +1,18 @@
-# Custom deployment configuration for 25% per minute
+locals {
+  # CodeDeploy time-based canary configuration
+  canary_percentage = 99  # first step = 99% of requests
+  canary_interval   = 1   # wait 1 minute, then CodeDeploy shifts the last 1%
+}
+
+# Custom deployment configuration for time-based canary
 resource "aws_codedeploy_deployment_config" "lambda_deployment_config" {
-  deployment_config_name = "${var.app}-${var.env}"
+  # Include config hash in name to enable create_before_destroy lifecycle
+  # When canary settings change, this creates a new config with unique name
+  # before destroying the old one (which can't be deleted while in use)
+  deployment_config_name = "${var.app}-${var.env}-${substr(sha256(jsonencode({
+    percentage = local.canary_percentage
+    interval   = local.canary_interval
+  })), 0, 8)}"
   compute_platform       = "Lambda"
 
     traffic_routing_config {
@@ -10,9 +22,13 @@ resource "aws_codedeploy_deployment_config" "lambda_deployment_config" {
         # where, if cloudwatch alarms saw something (like an error spike) we'd do an automated rollback.
         # That doesn't seem possible, and this below is the next best thing.
         time_based_canary {
-            percentage = 99   # first step = 99 % of requests
-            interval   = 5    # wait 5 minutes, then CodeDeploy shifts the last 1 %
+            percentage = local.canary_percentage
+            interval   = local.canary_interval
         }
+    }
+
+    lifecycle {
+        create_before_destroy = true
     }
 }
 

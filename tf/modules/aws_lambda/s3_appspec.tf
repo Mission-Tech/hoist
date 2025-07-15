@@ -1,6 +1,6 @@
 # S3 bucket for storing CodeDeploy AppSpec files
 resource "aws_s3_bucket" "codedeploy_appspec" {
-  bucket = "${var.app}-${var.env}-codedeploy-appspec"
+  bucket = "${var.app}-${var.env}-codedeploy-appspec-${data.aws_caller_identity.current.account_id}"
 
   tags = {
     Application = var.app

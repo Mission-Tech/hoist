@@ -156,6 +156,6 @@ resource "aws_lambda_alias" "live" {
   function_version = aws_lambda_function.main.version
   
   lifecycle {
-    ignore_changes = [function_version]  # Let CodeDeploy manage version updates
+    ignore_changes = [function_version, routing_config]  # Let CodeDeploy manage version updates and routing
   }
 }

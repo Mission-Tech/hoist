@@ -4,7 +4,7 @@ variable "app" {
 }
 
 variable "env" {
-  description = "Name of the environment (e.g., dev, staging, prod)"
+  description = "Name of the environment (dev or prod)"
   type        = string
 }
 
@@ -19,12 +19,6 @@ variable "error_rate_threshold" {
   default     = 10
 }
 
-variable "ecr_image_tag_trigger" {
-  description = "ECR image tag that triggers deployments (e.g., 'latest', 'prod')"
-  type        = string
-  default     = "latest"
-}
-
 variable "lambda_timeout" {
   description = "Lambda function timeout in seconds"
   type        = number
@@ -36,4 +30,5 @@ variable "lambda_memory_size" {
   type        = number
   default     = 512
 }
+
 

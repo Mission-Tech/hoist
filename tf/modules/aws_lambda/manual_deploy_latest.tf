@@ -11,7 +11,7 @@ resource "aws_lambda_function" "manual_deploy" {
 
   environment {
     variables = {
-      TRIGGER_FUNCTION_NAME = aws_lambda_function.trigger_codedeploy.function_name
+      DEPLOY_FUNCTION_NAME = aws_lambda_function.deploy.function_name
       ECR_REPOSITORY_NAME   = aws_ecr_repository.lambda_repository.name
     }
   }
@@ -26,7 +26,7 @@ resource "aws_lambda_function" "manual_deploy" {
 
 # IAM role for manual deploy Lambda
 resource "aws_iam_role" "manual_deploy" {
-  name = "${var.app}-${var.env}-manual-deploy"
+  name = "${var.app}-${var.env}-manual-deploy-latest"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -51,7 +51,7 @@ resource "aws_iam_role" "manual_deploy" {
 
 # Policy for manual deploy Lambda
 resource "aws_iam_role_policy" "manual_deploy" {
-  name = "${var.app}-${var.env}-manual-deploy"
+  name = "${var.app}-${var.env}-manual-deploy-latest"
   role = aws_iam_role.manual_deploy.id
 
   policy = jsonencode({
@@ -65,8 +65,8 @@ resource "aws_iam_role_policy" "manual_deploy" {
           "logs:PutLogEvents"
         ]
         Resource = [
-          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.app}-${var.env}-manual-deploy",
-          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.app}-${var.env}-manual-deploy:*"
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.app}-${var.env}-manual-deploy-latest",
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.app}-${var.env}-manual-deploy-latest:*"
         ]
       },
       {
@@ -85,7 +85,7 @@ resource "aws_iam_role_policy" "manual_deploy" {
           "lambda:InvokeFunction"
         ]
         Resource = [
-          aws_lambda_function.trigger_codedeploy.arn
+          aws_lambda_function.deploy.arn
         ]
       }
     ]
@@ -95,6 +95,6 @@ resource "aws_iam_role_policy" "manual_deploy" {
 # Archive for manual deploy Lambda
 data "archive_file" "manual_deploy_lambda" {
   type        = "zip"
-  source_dir  = "${path.module}/manual_deploy_lambda"
+  source_dir  = "${path.module}/manual_deploy_latest_lambda"
   output_path = "${path.module}/manual_deploy_lambda.zip"
 }

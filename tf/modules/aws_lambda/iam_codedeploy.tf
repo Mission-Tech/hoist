@@ -71,6 +71,20 @@ resource "aws_iam_role_policy" "codedeploy_s3" {
         Resource = [
           "${aws_s3_bucket.codedeploy_appspec.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetBucketVersioning",
+          "s3:GetObject",
+          "s3:GetObjectVersion",
+          "s3:GetObjectVersionTagging"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.app}-${local.tools_account_id}-tools-pipeline-artifacts",
+          "arn:aws:s3:::${var.app}-${local.tools_account_id}-tools-pipeline-artifacts/*"
+        ]
       }
     ]
   })

@@ -113,6 +113,10 @@ resource "aws_lambda_function" "health_check" {
 # Archive for health check Lambda
 data "archive_file" "health_check_lambda" {
   type        = "zip"
-  source_dir  = "${path.module}/health_check_lambda"
   output_path = "${path.module}/health_check_lambda.zip"
+  
+  source {
+    content  = file("${path.module}/health_check_lambda/index.py")
+    filename = "index.py"
+  }
 }

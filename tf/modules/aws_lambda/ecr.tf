@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "lambda_repository" {
-  name                 = "${var.app}-${var.env}"
+  name                 = "${var.app}-${var.env}" # CONVENTION: aws_lambda_tools depends on this naming pattern
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
