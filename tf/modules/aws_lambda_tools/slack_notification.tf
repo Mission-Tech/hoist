@@ -95,6 +95,8 @@ resource "aws_lambda_function" "slack_notification" {
   environment {
     variables = {
       SLACK_WEBHOOK_URL = nonsensitive(data.aws_ssm_parameter.slack_cd_webhook[0].value)
+      APP_NAME = var.app
+      GITHUB_ORG = var.github_org
     }
   }
 

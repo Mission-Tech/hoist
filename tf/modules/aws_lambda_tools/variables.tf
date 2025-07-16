@@ -12,3 +12,8 @@ variable "prod_region" {
   description = "AWS region for prod environment"
   type        = string
 }
+
+variable "github_org" {
+  description = "GitHub organization name for commit links"
+  type        = string
+}
