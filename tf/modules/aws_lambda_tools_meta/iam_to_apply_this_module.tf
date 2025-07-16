@@ -224,7 +224,12 @@ resource "aws_iam_policy" "events_notifications" {
           "sns:SetTopicAttributes",
           "sns:DeleteTopic",
           "sns:TagResource",
-          "sns:ListTagsForResource"
+          "sns:ListTagsForResource",
+          "sns:Subscribe",
+          "sns:Unsubscribe",
+          "sns:ListSubscriptionsByTopic",
+          "sns:GetSubscriptionAttributes",
+          "sns:SetSubscriptionAttributes"
         ]
         Resource = "arn:aws:sns:*:*:${var.app}-tools-*"
       }
