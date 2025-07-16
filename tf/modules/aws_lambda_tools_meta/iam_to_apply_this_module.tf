@@ -9,7 +9,7 @@
 # CodePipeline and artifact storage policy
 resource "aws_iam_policy" "codepipeline_artifacts" {
   name        = "${var.app}-tools-hoist-lambda-tools-tf-pipeline"
-  description = "CodePipeline and artifact storage permissions for aws_lambda_tools module"
+  description = "CodePipeline and artifact storage permissions for aws_lambda_tools module (updated)"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -63,13 +63,14 @@ resource "aws_iam_policy" "codepipeline_artifacts" {
           "codepipeline:GetPipeline",
           "codepipeline:GetPipelineState",
           "codepipeline:GetPipelineExecution",
+          "codepipeline:ListPipelineExecutions",
           "codepipeline:UpdatePipeline",
           "codepipeline:DeletePipeline",
           "codepipeline:TagResource",
           "codepipeline:ListTagsForResource",
           "codepipeline:UntagResource"
         ]
-        Resource = "arn:aws:codepipeline:*:*:pipeline/${var.app}-tools-*"
+        Resource = "arn:aws:codepipeline:*:*:${var.app}-tools-*"
       }
     ]
   })
@@ -247,7 +248,7 @@ resource "aws_iam_policy" "parameter_store" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # Parameter Store read permissions for account IDs
+      # Parameter Store read permissions for shared parameters
       {
         Sid    = "ParameterStoreRead"
         Effect = "Allow"
@@ -256,8 +257,7 @@ resource "aws_iam_policy" "parameter_store" {
           "ssm:GetParameters"
         ]
         Resource = [
-          "arn:aws:ssm:*:*:parameter/coreinfra/shared/dev_account_id",
-          "arn:aws:ssm:*:*:parameter/coreinfra/shared/prod_account_id"
+          "arn:aws:ssm:*:*:parameter/coreinfra/shared/*"
         ]
       }
     ]
