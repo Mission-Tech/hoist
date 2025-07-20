@@ -51,3 +51,24 @@ variable "github_oidc_provider_arn" {
     default     = ""
 }
 
+variable "dev_account_id" {
+    description = "AWS Account ID for the dev account"
+    type        = string
+}
+
+variable "prod_account_id" {
+    description = "AWS Account ID for the prod account"
+    type        = string
+}
+
+variable "slack_cd_webhook_url" {
+    description = "Slack webhook URL for CD notifications"
+    type        = string
+    sensitive   = true
+}
+
+variable "opentofu_version" {
+    description = "Version of OpenTofu to use in Lambda functions"
+    type        = string
+}
+
