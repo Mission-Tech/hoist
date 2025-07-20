@@ -7,8 +7,9 @@ variable "app" {
     type        = string
 }
 
-locals {
-    env = "tools" # only to be applied in tools environment
+variable "env" {
+    description = "Environment name (dev, prod)"
+    type        = string
 }
 
 variable "org" {
@@ -29,7 +30,7 @@ variable tags {
 locals {
     tags = merge(var.tags, {
         app: var.app
-        env: local.env
+        env: var.env
         org: var.org
         repo: var.repo
     })
@@ -39,31 +40,9 @@ locals {
 # ----------- Module-specific variables -----------
 # -------------------------------------------------
 
-variable "ci_role_name" {
-    description = "The name of the role that CI assumes"
-    type        = string
-}
 
-variable "github_oidc_provider_arn" {
-    description = "ARN of the GitHub OIDC provider. If not provided, will assume it by convention"
-    type        = string
-    default     = ""
-}
-
-variable "dev_account_id" {
-    description = "AWS Account ID for the dev account"
-    type        = string
-}
-
-variable "prod_account_id" {
-    description = "AWS Account ID for the prod account"
-    type        = string
-}
-
-variable "slack_cd_webhook_url" {
-    description = "Slack webhook URL for CD notifications"
-    type        = string
-    sensitive   = true
+variable "tools_tf_artifacts_bucket_arn" {
+    description = "ARN of the s3 bucket with tf artifacts (e.g. the tf code bundle)"
 }
 
 variable "opentofu_version" {
@@ -71,3 +50,7 @@ variable "opentofu_version" {
     type        = string
 }
 
+variable "tools_account_id" {
+    description = "AWS Account ID for the tools account"
+    type        = string
+}

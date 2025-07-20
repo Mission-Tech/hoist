@@ -1,4 +1,4 @@
-module tf-plan-lambda
+module tf_plan_lambda
 
 go 1.24.5
 

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
@@ -23,42 +22,83 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 )
 
+// CodePipeline event structure
+type CodePipelineEvent struct {
+	CodePipelineJob struct {
+		ID   string `json:"id"`
+		Data struct {
+			ActionConfiguration struct {
+				Configuration map[string]string `json:"configuration"`
+			} `json:"actionConfiguration"`
+			InputArtifacts []struct {
+				Name     string `json:"name"`
+				Location struct {
+					S3Location struct {
+						BucketName string `json:"bucketName"`
+						ObjectKey  string `json:"objectKey"`
+					} `json:"s3Location"`
+				} `json:"location"`
+			} `json:"inputArtifacts"`
+			OutputArtifacts []struct {
+				Name     string `json:"name"`
+				Location struct {
+					S3Location struct {
+						BucketName string `json:"bucketName"`
+						ObjectKey  string `json:"objectKey"`
+					} `json:"s3Location"`
+				} `json:"location"`
+			} `json:"outputArtifacts"`
+		} `json:"data"`
+	} `json:"CodePipeline.job"`
+}
+
 type UserParameters struct {
-	Environment string `json:"environment"`
-	AccountID   string `json:"account_id"`
-	CommitSHA   string `json:"commit_sha"`
-	Branch      string `json:"branch"`
-	Author      string `json:"author"`
+	Env       string `json:"env"`
+	AccountID string `json:"account_id"`
+	CommitSHA string `json:"commit_sha"`
+	Branch    string `json:"branch"`
+	Author    string `json:"author"`
 }
 
 type PlanSummary struct {
-	Environment string `json:"environment"`
-	AccountID   string `json:"account_id"`
-	CommitSHA   string `json:"commit_sha"`
-	Branch      string `json:"branch"`
-	Author      string `json:"author"`
-	Success     bool   `json:"success"`
-	Error       string `json:"error,omitempty"`
-	PlanOutput  string `json:"plan_output"`
+	Env        string `json:"env"`
+	AccountID  string `json:"account_id"`
+	CommitSHA  string `json:"commit_sha"`
+	Branch     string `json:"branch"`
+	Author     string `json:"author"`
+	Success    bool   `json:"success"`
+	Error      string `json:"error,omitempty"`
+	PlanOutput string `json:"plan_output"`
 }
 
-func handler(ctx context.Context, event events.CodePipelineJobEvent) error {
+func handler(ctx context.Context, event CodePipelineEvent) error {
 	job := event.CodePipelineJob
 	jobID := job.ID
 	jobData := job.Data
 
 	// Parse user parameters
 	var userParams UserParameters
-	if err := json.Unmarshal([]byte(jobData.ActionConfiguration.Configuration["UserParameters"]), &userParams); err != nil {
+	userParamsStr, ok := jobData.ActionConfiguration.Configuration["UserParameters"]
+	if !ok {
+		return reportFailure(jobID, "UserParameters not found in action configuration")
+	}
+	
+	if err := json.Unmarshal([]byte(userParamsStr), &userParams); err != nil {
 		return reportFailure(jobID, fmt.Sprintf("Failed to parse user parameters: %v", err))
 	}
 
 	// Get input artifact location
+	if len(jobData.InputArtifacts) == 0 {
+		return reportFailure(jobID, "No input artifacts found")
+	}
 	inputArtifact := jobData.InputArtifacts[0]
 	bucket := inputArtifact.Location.S3Location.BucketName
 	key := inputArtifact.Location.S3Location.ObjectKey
 
 	// Get output artifact location
+	if len(jobData.OutputArtifacts) == 0 {
+		return reportFailure(jobID, "No output artifacts found")
+	}
 	outputArtifact := jobData.OutputArtifacts[0]
 	outputBucket := outputArtifact.Location.S3Location.BucketName
 	outputKey := outputArtifact.Location.S3Location.ObjectKey
@@ -82,11 +122,11 @@ func handler(ctx context.Context, event events.CodePipelineJobEvent) error {
 	}
 
 	// Run terraform plan
-	planOutput, err := runTerraformPlan(tempDir, userParams.Environment, sess)
+	planOutput, err := runTerraformPlan(tempDir, userParams.Env, sess)
 	if err != nil {
 		// Even if plan fails, we want to save the output
 		summary := PlanSummary{
-			Environment: userParams.Environment,
+			Env: userParams.Env,
 			AccountID:   userParams.AccountID,
 			CommitSHA:   userParams.CommitSHA,
 			Branch:      userParams.Branch,

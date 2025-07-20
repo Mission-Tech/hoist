@@ -11,7 +11,8 @@ def lambda_handler(event, context):
     Lambda function to trigger CodePipeline when terraform artifacts are uploaded to S3
     """
     
-    pipeline_name = os.environ['PIPELINE_NAME']
+    branch_pipeline_name = os.environ['BRANCH_PIPELINE_NAME']
+    main_pipeline_name = os.environ['MAIN_PIPELINE_NAME']
     
     for record in event['Records']:
         bucket = record['s3']['bucket']['name']
@@ -49,15 +50,24 @@ def lambda_handler(event, context):
             s3_metadata = {}
             commit_sha = branch = author = 'unknown'
         
+        # Determine which pipeline to trigger based on deployment type
+        if deployment_type == 'branch':
+            pipeline_name = branch_pipeline_name
+            action = 'plan'
+        elif deployment_type == 'main':
+            pipeline_name = main_pipeline_name
+            action = 'apply'
+        else:
+            print(f"Skipping {key} - unexpected deployment type: {deployment_type}")
+            continue
+        
         # Prepare pipeline execution parameters
         parameters = {
             'sourceS3Bucket': bucket,
             'sourceS3Key': key,
-            'deploymentType': deployment_type,
             'commitSha': commit_sha,
             'branch': branch,
-            'author': author,
-            'action': 'plan' if deployment_type == 'branch' else 'apply'
+            'author': author
         }
         
         # Start pipeline execution

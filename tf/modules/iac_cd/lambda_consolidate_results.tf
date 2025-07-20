@@ -1,6 +1,6 @@
 # Lambda execution role for consolidate results
 resource "aws_iam_role" "lambda_consolidate_results" {
-    name = "${var.org}-${var.app}-${var.env}-lambda-consolidate"
+    name = "${var.org}-${var.app}-${local.env}-lambda-consolidate"
     
     assume_role_policy = jsonencode({
         Version = "2012-10-17"
@@ -33,12 +33,15 @@ resource "aws_iam_role_policy" "lambda_consolidate_results" {
                     "logs:CreateLogStream",
                     "logs:PutLogEvents"
                 ]
-                Resource = "arn:aws:logs:*:*:*"
+                Resource = [
+                    "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${module.lambda_consolidate_results.lambda_function_name}",
+                    "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${module.lambda_consolidate_results.lambda_function_name}:*"
+                ]
             },
             {
                 Effect = "Allow"
                 Action = "s3:GetObject"
-                Resource = "${aws_s3_bucket.terraform_artifacts.arn}/*"
+                Resource = "${aws_s3_bucket.tf_artifacts.arn}/*"
             },
             {
                 Effect = "Allow"
@@ -57,7 +60,7 @@ module "lambda_consolidate_results" {
     source  = "terraform-aws-modules/lambda/aws"
     version = "6.7.0"
 
-    function_name = "${var.org}-${var.app}-${var.env}-consolidate-results"
+    function_name = "${var.org}-${var.app}-tools-consolidate-results"
     handler       = "lambda_consolidate_results.lambda_handler"
     runtime       = "python3.11"
     architectures = ["arm64"]

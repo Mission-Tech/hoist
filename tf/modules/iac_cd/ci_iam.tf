@@ -5,7 +5,7 @@ locals {
 
 # Policy for GitHub Actions to upload to S3 with branch restrictions
 resource "aws_iam_policy" "github_ci" {
-    name        = "${var.org}-${var.app}-${var.env}-github-ci"
+    name        = "${var.org}-${var.app}-${local.env}-github-ci"
     description = "Policy for GitHub Actions to upload terraform artifacts to S3"
 
     policy = jsonencode({
@@ -19,7 +19,7 @@ resource "aws_iam_policy" "github_ci" {
                     "s3:PutObject",
                     "s3:PutObjectTagging"
                 ],
-                Resource = "${aws_s3_bucket.terraform_artifacts.arn}/branch/*",
+                Resource = "${aws_s3_bucket.tf_artifacts.arn}/branch/*",
                 Condition = {
                     StringNotEquals = {
                         "token.actions.githubusercontent.com:ref" = "refs/heads/main"
@@ -34,7 +34,7 @@ resource "aws_iam_policy" "github_ci" {
                     "s3:PutObject",
                     "s3:PutObjectTagging"
                 ],
-                Resource = "${aws_s3_bucket.terraform_artifacts.arn}/main/*",
+                Resource = "${aws_s3_bucket.tf_artifacts.arn}/main/*",
                 Condition = {
                     StringEquals = {
                         "token.actions.githubusercontent.com:ref" = "refs/heads/main"

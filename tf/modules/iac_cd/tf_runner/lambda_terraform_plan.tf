@@ -18,6 +18,12 @@ resource "aws_iam_role" "lambda_terraform_plan" {
     tags = local.tags
 }
 
+# Attach ReadOnlyAccess for terraform plan to read arbitrary infrastructure
+resource "aws_iam_role_policy_attachment" "lambda_terraform_plan_readonly" {
+    role       = aws_iam_role.lambda_terraform_plan.name
+    policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
 # Policy for terraform plan Lambda
 resource "aws_iam_role_policy" "lambda_terraform_plan" {
     name = "terraform-plan-policy"
@@ -33,7 +39,10 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
                     "logs:CreateLogStream",
                     "logs:PutLogEvents"
                 ]
-                Resource = "arn:aws:logs:*:*:*"
+                Resource = [
+                    "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${module.lambda_terraform_plan.lambda_function_name}",
+                    "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${module.lambda_terraform_plan.lambda_function_name}:*"
+                ]
             },
             {
                 Effect = "Allow"
@@ -42,7 +51,7 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
                     "s3:PutObject"
                 ]
                 Resource = [
-                    "${aws_s3_bucket.terraform_artifacts.arn}/*"
+                    "${var.tools_tf_artifacts_bucket_arn}/*"
                 ]
             },
             {
@@ -53,14 +62,6 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
                 ]
                 Resource = "arn:aws:codepipeline:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:job/*"
             },
-            {
-                Effect = "Allow"
-                Action = "sts:AssumeRole"
-                Resource = [
-                    "arn:aws:iam::${var.dev_account_id}:role/${var.org}-${var.app}-${var.env}-terraform-executor",
-                    "arn:aws:iam::${var.prod_account_id}:role/${var.org}-${var.app}-${var.env}-terraform-executor"
-                ]
-            }
         ]
     })
 }
@@ -79,7 +80,7 @@ module "lambda_terraform_plan" {
 
     # Build the Go Lambda function
     source_path = {
-        path     = "${path.module}/src/tf-plan-lambda"
+        path     = "${path.module}/tf_plan_lambda"
         commands = [
             "go mod download",
             "go mod tidy", 
@@ -101,12 +102,14 @@ module "lambda_terraform_plan" {
     create_role = false
     lambda_role = aws_iam_role.lambda_terraform_plan.arn
 
-    environment_variables = {
-        CROSS_ACCOUNT_ROLE_NAME = "${var.org}-${var.app}-${var.env}-terraform-executor"
-        TOOLS_ACCOUNT_ID        = data.aws_caller_identity.current.account_id
-        DEV_ACCOUNT_ID          = var.dev_account_id
-        PROD_ACCOUNT_ID         = var.prod_account_id
-    }
-
     tags = local.tags
+}
+
+# Allow CodePipeline from tools account to invoke this Lambda
+resource "aws_lambda_permission" "allow_tools_codepipeline" {
+    statement_id  = "AllowToolsCodePipelineInvoke"
+    action        = "lambda:InvokeFunction"
+    function_name = module.lambda_terraform_plan.lambda_function_name
+    principal     = "codepipeline.amazonaws.com"
+    source_account = var.tools_account_id
 }

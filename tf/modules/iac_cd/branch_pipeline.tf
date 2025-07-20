@@ -1,11 +1,11 @@
 # CodePipeline for Terraform Plan (branch pushes) - runs in parallel across all accounts
 
-resource "aws_codepipeline" "terraform_plan" {
-    name     = "${var.org}-${var.app}-${var.env}-terraform-plan"
+resource "aws_codepipeline" "branch" {
+    name     = "${var.org}-${var.app}-${local.env}-terraform-plan"
     role_arn = aws_iam_role.codepipeline.arn
 
     artifact_store {
-        location = aws_s3_bucket.terraform_artifacts.bucket
+        location = aws_s3_bucket.tf_artifacts.id
         type     = "S3"
     }
 
@@ -21,7 +21,7 @@ resource "aws_codepipeline" "terraform_plan" {
             output_artifacts = ["source_output"]
 
             configuration = {
-                S3Bucket    = "#{variables.sourceS3Bucket}"
+                S3Bucket    = aws_s3_bucket.tf_artifacts.id
                 S3ObjectKey = "#{variables.sourceS3Key}"
             }
         }
@@ -42,9 +42,9 @@ resource "aws_codepipeline" "terraform_plan" {
             run_order       = 1
 
             configuration = {
-                FunctionName = module.lambda_terraform_plan.lambda_function_name
+                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${var.dev_account_id}:function:${var.org}-${var.app}-dev-terraform-plan"
                 UserParameters = jsonencode({
-                    environment = "dev"
+                    env = "dev"
                     account_id  = var.dev_account_id
                     commit_sha  = "#{variables.commitSha}"
                     branch      = "#{variables.branch}"
@@ -65,9 +65,9 @@ resource "aws_codepipeline" "terraform_plan" {
             run_order       = 1
 
             configuration = {
-                FunctionName = module.lambda_terraform_plan.lambda_function_name
+                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${var.prod_account_id}:function:${var.org}-${var.app}-prod-terraform-plan"
                 UserParameters = jsonencode({
-                    environment = "prod"
+                    env = "prod"
                     account_id  = var.prod_account_id
                     commit_sha  = "#{variables.commitSha}"
                     branch      = "#{variables.branch}"
@@ -88,9 +88,9 @@ resource "aws_codepipeline" "terraform_plan" {
             run_order       = 1
 
             configuration = {
-                FunctionName = module.lambda_terraform_plan.lambda_function_name
+                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.org}-${var.app}-tools-terraform-plan"
                 UserParameters = jsonencode({
-                    environment = "tools"
+                    env = "tools"
                     account_id  = data.aws_caller_identity.current.account_id
                     commit_sha  = "#{variables.commitSha}"
                     branch      = "#{variables.branch}"
@@ -121,12 +121,6 @@ resource "aws_codepipeline" "terraform_plan" {
                 })
             }
         }
-    }
-
-    variable {
-        name         = "sourceS3Bucket"
-        default_value = aws_s3_bucket.terraform_artifacts.bucket
-        description  = "S3 bucket containing terraform artifacts"
     }
 
     variable {
