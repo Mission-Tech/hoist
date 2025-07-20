@@ -5,7 +5,7 @@ locals {
 
 # Policy for GitHub Actions to upload to S3 with branch restrictions
 resource "aws_iam_policy" "github_ci" {
-    name        = "${var.app}-${var.env}-github-ci"
+    name        = "${var.org}-${var.app}-${var.env}-github-ci"
     description = "Policy for GitHub Actions to upload terraform artifacts to S3"
 
     policy = jsonencode({
@@ -43,6 +43,8 @@ resource "aws_iam_policy" "github_ci" {
             }
         ]
     })
+
+    tags = local.tags
 }
 
 resource "aws_iam_role_policy_attachment" "github_terraform_upload" {

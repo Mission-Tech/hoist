@@ -4,7 +4,7 @@ locals {
 }
 
 resource "aws_iam_role" "github_deploy" {
-    name = "${var.app}-${var.env}-github-ci"
+    name = "${var.org}-${var.app}-${var.env}-github-ci"
 
     assume_role_policy = jsonencode({
         Version = "2012-10-17",
@@ -18,6 +18,8 @@ resource "aws_iam_role" "github_deploy" {
                 Condition = {
                     StringEquals = {
                         "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+                    }
+                    StringLike = {
                         "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.app}:*"
                     }
                 }
@@ -26,7 +28,7 @@ resource "aws_iam_role" "github_deploy" {
     })
 
     tags = {
-        Name        = "${var.app}-${var.env}-ci"
+        Name        = "${var.org}-${var.app}-${var.env}-github-ci"
         Description = "GitHub-assumable CI role for ${var.app} in ${var.env} environment"
         Application = var.app
         Environment = var.env

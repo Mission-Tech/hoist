@@ -2,10 +2,10 @@
 
 # S3 bucket for storing terraform zip files from CI (lives in tools account)
 resource "aws_s3_bucket" "terraform_artifacts" {
-    bucket = "${var.app}-${var.env}-${data.aws_caller_identity.current.account_id}-iac"
+    bucket = "${var.org}-${var.app}-${var.env}-${data.aws_caller_identity.current.account_id}-iac"
 
     tags = merge(local.tags,{
-        Name        = "${var.app}-${var.env}-${data.aws_caller_identity.current.account_id}-iac"
+        Name        = "${var.org}-${var.app}-${var.env}-${data.aws_caller_identity.current.account_id}-iac"
         Purpose     = "Terraform artifact storage for IaC pipeline"
     })
 }
