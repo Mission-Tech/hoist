@@ -47,16 +47,6 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
             {
                 Effect = "Allow"
                 Action = [
-                    "s3:GetObject",
-                    "s3:PutObject"
-                ]
-                Resource = [
-                    "${var.tools_tf_artifacts_bucket_arn}/*"
-                ]
-            },
-            {
-                Effect = "Allow"
-                Action = [
                     "codepipeline:PutJobSuccessResult",
                     "codepipeline:PutJobFailureResult"
                 ]
@@ -93,10 +83,22 @@ module "lambda_terraform_plan" {
             # Package everything into the deployment ZIP
             ":zip"
         ]
+        # Only rebuild when source files change, not on every run
+        pip_requirements = false
+        patterns = [
+            "!.*/.*\\.txt",
+            "!.*/.*\\.md"
+        ]
     }
 
     build_in_docker = true
     docker_image    = "public.ecr.aws/sam/build-go1.x"
+    
+    # Only trigger rebuilds when Go files or OpenTofu version changes
+    hash_extra = "${filebase64sha256("${path.module}/tf_plan_lambda/main.go")}-${var.opentofu_version}"
+    
+    # Prevent timestamp from being included in triggers
+    trigger_on_package_timestamp = false
 
     # Attach the IAM role
     create_role = false

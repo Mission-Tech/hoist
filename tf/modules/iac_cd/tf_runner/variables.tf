@@ -40,11 +40,6 @@ locals {
 # ----------- Module-specific variables -----------
 # -------------------------------------------------
 
-
-variable "tools_tf_artifacts_bucket_arn" {
-    description = "ARN of the s3 bucket with tf artifacts (e.g. the tf code bundle)"
-}
-
 variable "opentofu_version" {
     description = "Version of OpenTofu to use in Lambda functions"
     type        = string
@@ -52,5 +47,10 @@ variable "opentofu_version" {
 
 variable "tools_account_id" {
     description = "AWS Account ID for the tools account"
+    type        = string
+}
+
+variable "tools_codepipeline_role_arn" {
+    description = "ARN of the CodePipeline role in the tools account that will invoke this Lambda"
     type        = string
 }

@@ -10,5 +10,5 @@ module "tf_runner" {
     
     opentofu_version = var.opentofu_version
     tools_account_id = data.aws_caller_identity.current.account_id
-    tools_tf_artifacts_bucket_arn = aws_s3_bucket.tf_artifacts.arn
+    tools_codepipeline_role_arn = aws_iam_role.codepipeline.arn
 }

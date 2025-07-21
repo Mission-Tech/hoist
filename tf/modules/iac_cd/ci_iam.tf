@@ -19,7 +19,7 @@ resource "aws_iam_policy" "github_ci" {
                     "s3:PutObject",
                     "s3:PutObjectTagging"
                 ],
-                Resource = "${aws_s3_bucket.tf_artifacts.arn}/branch/*",
+                Resource = "${aws_s3_bucket.ci_upload.arn}/branch/*",
                 Condition = {
                     StringNotEquals = {
                         "token.actions.githubusercontent.com:ref" = "refs/heads/main"
@@ -34,7 +34,7 @@ resource "aws_iam_policy" "github_ci" {
                     "s3:PutObject",
                     "s3:PutObjectTagging"
                 ],
-                Resource = "${aws_s3_bucket.tf_artifacts.arn}/main/*",
+                Resource = "${aws_s3_bucket.ci_upload.arn}/main/*",
                 Condition = {
                     StringEquals = {
                         "token.actions.githubusercontent.com:ref" = "refs/heads/main"

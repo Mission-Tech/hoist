@@ -1,12 +1,10 @@
-# S3 bucket for storing artifacts produced by CI before they're applied by the CD pipeline
-
-# S3 bucket for storing terraform zip files from CI (lives in tools account)
+# S3 bucket for CodePipeline artifact store (internal use only)
 resource "aws_s3_bucket" "tf_artifacts" {
-    bucket = "${var.org}-${var.app}-${local.env}-${data.aws_caller_identity.current.account_id}-iac"
+    bucket = "${var.org}-${var.app}-${local.env}-${data.aws_caller_identity.current.account_id}-pipeline"
 
     tags = merge(local.tags,{
-        Name        = "${var.org}-${var.app}-${local.env}-${data.aws_caller_identity.current.account_id}-iac"
-        Purpose     = "Terraform artifact storage for IaC pipeline"
+        Name        = "${var.org}-${var.app}-${local.env}-${data.aws_caller_identity.current.account_id}-pipeline"
+        Purpose     = "CodePipeline artifact store - internal use only"
     })
 }
 
@@ -20,7 +18,7 @@ resource "aws_s3_bucket_public_access_block" "tf_artifacts" {
     restrict_public_buckets = true
 }
 
-# Enable versioning to keep history of deployments
+# Enable versioning for pipeline artifact integrity
 resource "aws_s3_bucket_versioning" "tf_artifacts" {
     bucket = aws_s3_bucket.tf_artifacts.id
 
@@ -34,32 +32,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "tf_artifacts" {
     bucket = aws_s3_bucket.tf_artifacts.id
 
     rule {
-        id     = "cleanup-old-branch-artifacts"
+        id     = "cleanup-pipeline-artifacts"
         status = "Enabled"
 
-        filter {
-            prefix = "branch/"
-        }
+        filter {}
 
+        # Pipeline artifacts can be kept longer for debugging
         expiration {
-            days = 30
+            days = 90
         }
 
         noncurrent_version_expiration {
-            noncurrent_days = 7
-        }
-    }
-
-    rule {
-        id     = "cleanup-old-main-artifacts"
-        status = "Enabled"
-
-        filter {
-            prefix = "main/"
-        }
-
-        noncurrent_version_expiration {
-            noncurrent_days = 90
+            noncurrent_days = 30
         }
     }
 }
+
+# No EventBridge needed - this is only for pipeline internal use

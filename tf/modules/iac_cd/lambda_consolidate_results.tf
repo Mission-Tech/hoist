@@ -68,6 +68,9 @@ module "lambda_consolidate_results" {
     memory_size   = 512
 
     source_path = "${path.module}/src/consolidate-results-lambda"
+    
+    # Prevent timestamp from being included in triggers
+    trigger_on_package_timestamp = false
 
     # Attach the IAM role
     create_role = false

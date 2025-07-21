@@ -3,6 +3,7 @@
 resource "aws_codepipeline" "branch" {
     name     = "${var.org}-${var.app}-${local.env}-terraform-plan"
     role_arn = aws_iam_role.codepipeline.arn
+    pipeline_type = "V2"
 
     artifact_store {
         location = aws_s3_bucket.tf_artifacts.id
@@ -19,10 +20,12 @@ resource "aws_codepipeline" "branch" {
             provider         = "S3"
             version          = "1"
             output_artifacts = ["source_output"]
+            namespace = "SourceVariables"  # Capture source metadata including version
 
             configuration = {
-                S3Bucket    = aws_s3_bucket.tf_artifacts.id
-                S3ObjectKey = "#{variables.sourceS3Key}"
+                S3Bucket    = aws_s3_bucket.ci_upload.id
+                S3ObjectKey = "branch/latest.zip"  # Fixed key that CI will overwrite
+                PollForSourceChanges = false  # We use EventBridge trigger instead
             }
         }
     }
@@ -40,15 +43,13 @@ resource "aws_codepipeline" "branch" {
             input_artifacts = ["source_output"]
             output_artifacts = ["dev_plan_output"]
             run_order       = 1
+            role_arn        = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_lambda_plan_invoker_name}"
 
             configuration = {
-                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${var.dev_account_id}:function:${var.org}-${var.app}-dev-terraform-plan"
+                FunctionName = local.conventional_dev_lambda_plan_lambda_function_name
                 UserParameters = jsonencode({
                     env = "dev"
-                    account_id  = var.dev_account_id
-                    commit_sha  = "#{variables.commitSha}"
-                    branch      = "#{variables.branch}"
-                    author      = "#{variables.author}"
+                    metadata_path = "metadata.json"
                 })
             }
         }
@@ -63,15 +64,13 @@ resource "aws_codepipeline" "branch" {
             input_artifacts = ["source_output"]
             output_artifacts = ["prod_plan_output"]
             run_order       = 1
+            role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
 
             configuration = {
-                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${var.prod_account_id}:function:${var.org}-${var.app}-prod-terraform-plan"
+                FunctionName = local.conventional_prod_lambda_plan_lambda_function_name
                 UserParameters = jsonencode({
                     env = "prod"
-                    account_id  = var.prod_account_id
-                    commit_sha  = "#{variables.commitSha}"
-                    branch      = "#{variables.branch}"
-                    author      = "#{variables.author}"
+                    metadata_path = "metadata.json"
                 })
             }
         }
@@ -88,13 +87,10 @@ resource "aws_codepipeline" "branch" {
             run_order       = 1
 
             configuration = {
-                FunctionName = "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.org}-${var.app}-tools-terraform-plan"
+                FunctionName = module.tf_runner.lambda_terraform_plan_function_name
                 UserParameters = jsonencode({
                     env = "tools"
-                    account_id  = data.aws_caller_identity.current.account_id
-                    commit_sha  = "#{variables.commitSha}"
-                    branch      = "#{variables.branch}"
-                    author      = "#{variables.author}"
+                    metadata_path = "metadata.json"
                 })
             }
         }
@@ -113,45 +109,14 @@ resource "aws_codepipeline" "branch" {
 
             configuration = {
                 FunctionName = module.lambda_consolidate_results.lambda_function_name
-                UserParameters = jsonencode({
-                    commit_sha = "#{variables.commitSha}"
-                    branch     = "#{variables.branch}"
-                    author     = "#{variables.author}"
-                    pr_number  = "#{variables.prNumber}"
-                })
+                UserParameters = jsonencode({})
             }
         }
     }
 
-    variable {
-        name         = "sourceS3Key"
-        default_value = ""
-        description  = "S3 key of terraform artifact"
-    }
+    # No pipeline variables needed - metadata comes from files in the artifact
 
-    variable {
-        name         = "prNumber"
-        default_value = ""
-        description  = "Pull request number if applicable"
-    }
-
-    variable {
-        name         = "commitSha"
-        default_value = ""
-        description  = "Git commit SHA"
-    }
-
-    variable {
-        name         = "branch"
-        default_value = ""
-        description  = "Git branch name"
-    }
-
-    variable {
-        name         = "author"
-        default_value = ""
-        description  = "Commit author"
-    }
+    execution_mode = "QUEUED"  # Apply terraform runs in order
 
     tags = local.tags
 }

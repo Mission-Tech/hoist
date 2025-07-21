@@ -3,6 +3,7 @@
 resource "aws_codepipeline" "main" {
     name     = "${var.org}-${var.app}-${local.env}-terraform-apply"
     role_arn = aws_iam_role.codepipeline.arn
+    pipeline_type = "V2"
 
     artifact_store {
         location = aws_s3_bucket.tf_artifacts.id
@@ -21,8 +22,9 @@ resource "aws_codepipeline" "main" {
             output_artifacts = ["source_output"]
 
             configuration = {
-                S3Bucket    = aws_s3_bucket.tf_artifacts.id
-                S3ObjectKey = "#{variables.sourceS3Key}"
+                S3Bucket    = aws_s3_bucket.ci_upload.id
+                S3ObjectKey = "main/latest.zip"  # Fixed key that CI will overwrite
+                PollForSourceChanges = false  # We use EventBridge trigger instead
             }
         }
     }
@@ -43,29 +45,9 @@ resource "aws_codepipeline" "main" {
         }
     }
 
-    variable {
-        name         = "sourceS3Key"
-        default_value = ""
-        description  = "S3 key of terraform artifact"
-    }
+    # No pipeline variables needed - metadata comes from files in the artifact
 
-    variable {
-        name         = "commitSha"
-        default_value = ""
-        description  = "Git commit SHA"
-    }
-
-    variable {
-        name         = "branch"
-        default_value = ""
-        description  = "Git branch name"
-    }
-
-    variable {
-        name         = "author"
-        default_value = ""
-        description  = "Commit author"
-    }
+    execution_mode = "SUPERSEDED"  # Cancel old executions when new ones start
 
     tags = local.tags
 }

@@ -32,9 +32,14 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "s3:GetObject",
                     "s3:GetObjectVersion",
                     "s3:PutObject",
-                    "s3:GetBucketVersioning"
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketLocation"
                 ]
                 Resource = [
+                    # Read from CI upload bucket (source)
+                    aws_s3_bucket.ci_upload.arn,
+                    "${aws_s3_bucket.ci_upload.arn}/*",
+                    # Read/write to pipeline artifact store
                     aws_s3_bucket.tf_artifacts.arn,
                     "${aws_s3_bucket.tf_artifacts.arn}/*"
                 ]
@@ -61,6 +66,23 @@ resource "aws_iam_role_policy" "codepipeline" {
                 Resource = [
                     "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${var.org}-${var.app}-${local.env}-*",
                     "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${var.org}-${var.app}-${local.env}-*:*"
+                ]
+            },
+            {
+                Effect = "Allow"
+                Action = [
+                    "events:PutRule",
+                    "events:PutTargets",
+                    "events:DescribeRule"
+                ]
+                Resource = "arn:aws:events:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:rule/*"
+            },
+            {
+                Effect = "Allow"
+                Action = "sts:AssumeRole"
+                Resource = [
+                    "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_lambda_plan_invoker_name}",
+                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
                 ]
             }
         ]
