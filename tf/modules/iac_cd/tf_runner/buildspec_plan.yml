@@ -31,6 +31,9 @@ phases:
             --query 'Parameters[*].[Name,Value]' \
             --output text > /tmp/ssm_params.txt
           
+          # Create env file even if empty to avoid source error
+          touch /tmp/env_vars.sh
+          
           # Now source them in the main shell
           while IFS=$'\t' read -r name value; do
             var_name=$(echo $name | sed "s|$PARAMETER_STORE_PREFIX/||" | sed 's/^/TF_VAR_/')
