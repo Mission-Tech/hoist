@@ -47,7 +47,7 @@ resource "aws_codepipeline" "main" {
 
     # No pipeline variables needed - metadata comes from files in the artifact
 
-    execution_mode = "SUPERSEDED"  # Cancel old executions when new ones start
+    execution_mode = "QUEUED"  # Apply terraform runs in order
 
     tags = local.tags
 }

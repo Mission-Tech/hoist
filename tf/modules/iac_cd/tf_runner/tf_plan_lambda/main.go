@@ -348,6 +348,19 @@ func runTerraformPlan(workDir string, params UserParameters) (string, error) {
 
     // Use current environment variables (Lambda already has the right credentials)
     env := os.Environ()
+    
+    // Add /opt/bin to PATH for git (from Lambda layer)
+    pathFound := false
+    for i, e := range env {
+        if strings.HasPrefix(e, "PATH=") {
+            env[i] = e + ":/opt/bin"
+            pathFound = true
+            break
+        }
+    }
+    if !pathFound {
+        env = append(env, "PATH=/opt/bin:/usr/local/bin:/usr/bin:/bin")
+    }
 
     // Load sensitive parameters from SSM and add to environment
     ssmParams, err := loadParametersFromSSM()

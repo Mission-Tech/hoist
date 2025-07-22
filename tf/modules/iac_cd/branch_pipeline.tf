@@ -116,7 +116,7 @@ resource "aws_codepipeline" "branch" {
 
     # No pipeline variables needed - metadata comes from files in the artifact
 
-    execution_mode = "QUEUED"  # Apply terraform runs in order
+    execution_mode = "PARALLEL"  # Allow concurrent executions
 
     tags = local.tags
 }
