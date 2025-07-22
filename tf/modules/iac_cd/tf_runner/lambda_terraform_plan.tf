@@ -50,7 +50,8 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
                     "codepipeline:PutJobSuccessResult",
                     "codepipeline:PutJobFailureResult"
                 ]
-                Resource = "arn:aws:codepipeline:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:job/*"
+                # CodePipeline job operations don't support resource-level permissions
+                Resource = "*"
             },
         ]
     })

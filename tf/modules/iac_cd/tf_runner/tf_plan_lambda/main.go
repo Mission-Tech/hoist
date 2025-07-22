@@ -90,6 +90,8 @@ func handler(ctx context.Context, event CodePipelineEvent) error {
     jobID := job.ID
     jobData := job.Data
 
+    fmt.Printf("Starting Lambda execution for job ID: %s\n", jobID)
+
     // Parse user parameters
     var userParams UserParameters
     userParamsStr, ok := jobData.ActionConfiguration.Configuration["UserParameters"]
@@ -100,6 +102,8 @@ func handler(ctx context.Context, event CodePipelineEvent) error {
     if err := json.Unmarshal([]byte(userParamsStr), &userParams); err != nil {
         return reportFailure(jobID, fmt.Sprintf("Failed to parse user parameters: %v", err))
     }
+    
+    fmt.Printf("User parameters: env=%s, metadata_path=%s\n", userParams.Env, userParams.MetadataPath)
 
     // Get input artifact location
     if len(jobData.InputArtifacts) == 0 {
@@ -128,9 +132,11 @@ func handler(ctx context.Context, event CodePipelineEvent) error {
     artifactCreds := jobData.ArtifactCredentials
 
     // Download and extract artifact
+    fmt.Printf("Downloading artifact from s3://%s/%s\n", bucket, key)
     if err := downloadAndExtract(bucket, key, tempDir, artifactCreds); err != nil {
         return reportFailure(jobID, fmt.Sprintf("Failed to download artifact: %v", err))
     }
+    fmt.Printf("Artifact extracted to: %s\n", tempDir)
 
     // Read metadata from specified path (default to metadata.json)
     metadataPath := userParams.MetadataPath
@@ -277,8 +283,8 @@ func runTerraformPlan(workDir, environment string) (string, error) {
     // Use current environment variables (Lambda already has the right credentials)
     env := os.Environ()
 
-    // Run tofu init
-    initCmd := exec.Command(tofuPath, "init")
+    // Run tofu init with no color output for cleaner logs
+    initCmd := exec.Command(tofuPath, "init", "-no-color")
     initCmd.Dir = tfDir
     initCmd.Env = env
 
@@ -287,7 +293,7 @@ func runTerraformPlan(workDir, environment string) (string, error) {
     initCmd.Stderr = &initOut
 
     if err := initCmd.Run(); err != nil {
-        return initOut.String(), fmt.Errorf("tofu init failed: %w\nOutput: %s", err, initOut.String())
+        return initOut.String(), fmt.Errorf("tofu init failed: %w", err)
     }
 
     // Prepare tofu plan command
@@ -423,6 +429,7 @@ func reportFailure(jobID, message string) error {
         JobId: aws.String(jobID),
         FailureDetails: &codepipeline.FailureDetails{
             Message: aws.String(message),
+            Type:    aws.String("JobFailed"),
         },
     })
     return err

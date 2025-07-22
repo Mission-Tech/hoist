@@ -55,25 +55,25 @@ resource "aws_codepipeline" "branch" {
         }
 
         # Prod account plan
-        action {
-            name            = "PlanProd"
-            category        = "Invoke"
-            owner           = "AWS"
-            provider        = "Lambda"
-            version         = "1"
-            input_artifacts = ["source_output"]
-            output_artifacts = ["prod_plan_output"]
-            run_order       = 1
-            role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
-
-            configuration = {
-                FunctionName = local.conventional_prod_lambda_plan_lambda_function_name
-                UserParameters = jsonencode({
-                    env = "prod"
-                    metadata_path = "metadata.json"
-                })
-            }
-        }
+        # action {
+        #     name            = "PlanProd"
+        #     category        = "Invoke"
+        #     owner           = "AWS"
+        #     provider        = "Lambda"
+        #     version         = "1"
+        #     input_artifacts = ["source_output"]
+        #     output_artifacts = ["prod_plan_output"]
+        #     run_order       = 1
+        #     role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
+        # 
+        #     configuration = {
+        #         FunctionName = local.conventional_prod_lambda_plan_lambda_function_name
+        #         UserParameters = jsonencode({
+        #             env = "prod"
+        #             metadata_path = "metadata.json"
+        #         })
+        #     }
+        # }
 
         # Tools account plan
         action {
@@ -105,7 +105,7 @@ resource "aws_codepipeline" "branch" {
             owner           = "AWS"
             provider        = "Lambda"
             version         = "1"
-            input_artifacts = ["dev_plan_output", "prod_plan_output", "tools_plan_output"]
+            input_artifacts = ["dev_plan_output", "tools_plan_output"] # TODO(izaak): add prod_plan_output
 
             configuration = {
                 FunctionName = module.lambda_consolidate_results.lambda_function_name
