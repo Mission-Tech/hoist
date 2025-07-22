@@ -11,7 +11,6 @@ module "tf_runner" {
     opentofu_version = var.opentofu_version
     tools_account_id = data.aws_caller_identity.current.account_id
     tools_codepipeline_role_arn = aws_iam_role.codepipeline.arn
-    pipeline_artifacts_kms_key_id = var.pipeline_artifacts_kms_key_id
     
     # Pass terraform variables
     tfvars = {
