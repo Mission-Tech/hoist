@@ -10,4 +10,8 @@ locals {
     
     conventional_dev_codebuild_plan_invoker_name = "${var.org}-${var.app}-dev-codepipeline-build-invoker"
     conventional_prod_codebuild_plan_invoker_name = "${var.org}-${var.app}-prod-codepipeline-build-invoker"
+    
+    # CodeBuild service role names created by tf_runner module in dev/prod accounts
+    conventional_dev_codebuild_plan_role_name = "${var.org}-${var.app}-dev-codebuild-terraform-plan"
+    conventional_prod_codebuild_plan_role_name = "${var.org}-${var.app}-prod-codebuild-terraform-plan"
 }

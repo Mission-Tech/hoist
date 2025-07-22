@@ -126,11 +126,13 @@ resource "aws_iam_role_policy" "codebuild_terraform_plan" {
                 # CodePipeline doesn't support resource-level permissions
             },
             {
-                # Allow reading artifacts from the tools account pipeline bucket (cross-account)
+                # Allow reading/writing artifacts from the tools account pipeline bucket
+                # This is needed for both cross-account access AND for the tools account itself
                 Effect = "Allow"
                 Action = [
                     "s3:GetObject",
-                    "s3:GetObjectVersion"
+                    "s3:GetObjectVersion",
+                    "s3:PutObject"
                 ]
                 Resource = "arn:aws:s3:::${local.conventional_tools_pipeline_artifacts_bucket}/*"
             },
