@@ -1,30 +1,30 @@
-# Determine VPC and subnet IDs
-locals {
-  # Use provided VPC ID or look it up by convention
-  vpc_id = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.lookup[0].id
-  
-  # Use provided subnet IDs or look them up by convention
-  subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnets.lookup[0].ids
-}
-
-# Data source for VPC (only if not provided via variable)
-data "aws_vpc" "lookup" {
-  count = var.vpc_id == "" ? 1 : 0
-  
+# Data source for VPCs - returns empty list if none found
+data "aws_vpcs" "by_tag" {
   filter {
     name   = "tag:Name"
     values = [local.conventional_coreinfra_vpc_name]
   }
 }
 
-# Data source for public subnets (only if not provided via variable)
-data "aws_subnets" "lookup" {
-  count = length(var.public_subnet_ids) == 0 ? 1 : 0
-  
+# Data source for subnets - returns empty list if none found
+data "aws_subnets" "by_tag" {
   filter {
     name   = "tag:Name"
     values = local.conventional_coreinfra_public_subnets
   }
+}
+
+# Determine which VPC and subnet IDs to use
+locals {
+  # Use try(one(...), null) to safely handle empty lists
+  looked_up_vpc_id = try(one(data.aws_vpcs.by_tag.ids), null)
+  looked_up_subnet_ids = try(data.aws_subnets.by_tag.ids, [])
+  
+  # Use coalesce for VPC ID (first non-null value)
+  vpc_id = coalesce(var.vpc_id, local.looked_up_vpc_id)
+  
+  # For subnets, use provided list if non-empty, otherwise use looked up
+  subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : local.looked_up_subnet_ids
 }
 
 # Security group for CodeBuild
