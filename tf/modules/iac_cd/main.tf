@@ -20,6 +20,8 @@ module "tf_runner" {
         # Add environment-specific variables
         dev_account_id = var.dev_account_id
         prod_account_id = var.prod_account_id
+        github_org = var.github_org
+        opentofu_version = var.opentofu_version
     }
     
     # Add any sensitive variables here

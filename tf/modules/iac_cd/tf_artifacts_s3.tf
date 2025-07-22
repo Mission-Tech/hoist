@@ -27,6 +27,17 @@ resource "aws_s3_bucket_versioning" "tf_artifacts" {
     }
 }
 
+# Use SSE-S3 encryption (not KMS) to avoid cross-account KMS complexity
+resource "aws_s3_bucket_server_side_encryption_configuration" "tf_artifacts" {
+    bucket = aws_s3_bucket.tf_artifacts.id
+
+    rule {
+        apply_server_side_encryption_by_default {
+            sse_algorithm = "AES256"
+        }
+    }
+}
+
 # Lifecycle rule to clean up old artifacts
 resource "aws_s3_bucket_lifecycle_configuration" "tf_artifacts" {
     bucket = aws_s3_bucket.tf_artifacts.id

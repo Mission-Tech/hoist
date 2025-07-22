@@ -71,3 +71,8 @@ variable "opentofu_version" {
     type        = string
 }
 
+variable "github_org" {
+    description = "GitHub organization name"
+    type        = string
+}
+
