@@ -67,26 +67,10 @@ phases:
           source /tmp/env_vars.sh
         fi
       
-      # Determine the environment directory
+      # Navigate to the root module directory and run terraform init
       - |
-        ENV_DIR=""
-        for dir in "environments/$ENVIRONMENT" "tf/environments/$ENVIRONMENT" "tf/$ENVIRONMENT" "$ENVIRONMENT"; do
-          if [ -d "$dir" ]; then
-            ENV_DIR="$dir"
-            echo "Found environment directory: $ENV_DIR"
-            break
-          fi
-        done
-        
-        if [ -z "$ENV_DIR" ]; then
-          echo "ERROR: Could not find environment directory for $ENVIRONMENT"
-          exit 1
-        fi
-      
-      # Run terraform init
-      - |
-        cd $ENV_DIR
-        echo "Running tofu init..."
+        cd $ROOT_MODULE_DIR
+        echo "Running tofu init in $ROOT_MODULE_DIR..."
         tofu init -no-color -input=false
       
       # Run terraform plan

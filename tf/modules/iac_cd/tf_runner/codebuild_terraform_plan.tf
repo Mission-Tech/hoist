@@ -38,6 +38,11 @@ resource "aws_codebuild_project" "terraform_plan" {
             name  = "ENVIRONMENT"
             value = var.env
         }
+        
+        environment_variable {
+            name  = "ROOT_MODULE_DIR"
+            value = var.root_module_dir
+        }
     }
     
     source {

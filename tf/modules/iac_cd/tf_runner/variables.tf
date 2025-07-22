@@ -67,3 +67,8 @@ variable "tfvars_sensitive" {
     default     = {}
     sensitive   = true
 }
+
+variable "root_module_dir" {
+    description = "Directory path to the root terraform module (e.g., 'tf/app' for dev/prod, 'tf/tools' for tools)"
+    type        = string
+}

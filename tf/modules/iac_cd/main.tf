@@ -28,4 +28,7 @@ module "tf_runner" {
     tfvars_sensitive = {
         slack_cd_webhook_url = var.slack_cd_webhook_url
     }
+    
+    # Root module directory for tools environment
+    root_module_dir = "tf/tools"
 }
