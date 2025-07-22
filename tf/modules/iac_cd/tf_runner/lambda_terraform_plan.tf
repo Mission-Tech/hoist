@@ -116,11 +116,18 @@ module "lambda_terraform_plan" {
     create_role = false
     lambda_role = aws_iam_role.lambda_terraform_plan.arn
     
+    # Add git-lambda-layer
+    layers = [
+        "arn:aws:lambda:${data.aws_region.current.name}:553035198032:layer:git-lambda2:8"
+    ]
+    
     # Environment variables
     environment_variables = merge(
         {
             # Pass the parameter store prefix so Lambda knows where to look
             PARAMETER_STORE_PREFIX = local.parameter_prefix
+            # Git layer puts git in /opt/bin
+            GIT_EXEC_PATH = "/opt/bin"
         },
         # Add all tfvars as TF_VAR_ environment variables
         { for k, v in var.tfvars : "TF_VAR_${k}" => v }
