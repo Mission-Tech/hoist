@@ -101,7 +101,7 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "kms:CreateGrant",
                     "kms:RetireGrant"
                 ]
-                Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:kms/${var.pipeline_artifacts_kms_key_id}"
+                Resource = "arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/${var.pipeline_artifacts_kms_key_id}"
             }
         ]
     })
