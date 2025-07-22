@@ -36,21 +36,17 @@ resource "aws_codepipeline" "branch" {
         # Dev account plan
         action {
             name            = "PlanDev"
-            category        = "Invoke"
+            category        = "Build"
             owner           = "AWS"
-            provider        = "Lambda"
+            provider        = "CodeBuild"
             version         = "1"
             input_artifacts = ["source_output"]
             output_artifacts = ["dev_plan_output"]
             run_order       = 1
-            role_arn        = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_lambda_plan_invoker_name}"
+            role_arn        = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_invoker_name}"
 
             configuration = {
-                FunctionName = local.conventional_dev_lambda_plan_lambda_function_name
-                UserParameters = jsonencode({
-                    env = "dev"
-                    metadata_path = "metadata.json"
-                })
+                ProjectName = local.conventional_dev_codebuild_plan_project_name
             }
         }
 
@@ -78,20 +74,16 @@ resource "aws_codepipeline" "branch" {
         # Tools account plan
         action {
             name            = "PlanTools"
-            category        = "Invoke"
+            category        = "Build"
             owner           = "AWS"
-            provider        = "Lambda"
+            provider        = "CodeBuild"
             version         = "1"
             input_artifacts = ["source_output"]
             output_artifacts = ["tools_plan_output"]
             run_order       = 1
 
             configuration = {
-                FunctionName = module.tf_runner.lambda_terraform_plan_function_name
-                UserParameters = jsonencode({
-                    env = "tools"
-                    metadata_path = "metadata.json"
-                })
+                ProjectName = module.tf_runner.codebuild_terraform_plan_project_name
             }
         }
     }

@@ -47,12 +47,19 @@ resource "aws_iam_role_policy" "codepipeline" {
             {
                 Effect = "Allow"
                 Action = [
+                    "codebuild:BatchGetBuilds",
+                    "codebuild:StartBuild"
+                ]
+                Resource = [
+                    module.tf_runner.codebuild_terraform_plan_project_arn
+                ]
+            },
+            {
+                Effect = "Allow"
+                Action = [
                     "lambda:InvokeFunction"
                 ]
                 Resource = [
-                    "arn:aws:lambda:${data.aws_region.current.name}:${var.dev_account_id}:function:${var.org}-${var.app}-dev-terraform-plan",
-                    "arn:aws:lambda:${data.aws_region.current.name}:${var.prod_account_id}:function:${var.org}-${var.app}-prod-terraform-plan",
-                    "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.org}-${var.app}-tools-terraform-plan",
                     module.lambda_consolidate_results.lambda_function_arn
                 ]
             },
@@ -81,8 +88,8 @@ resource "aws_iam_role_policy" "codepipeline" {
                 Effect = "Allow"
                 Action = "sts:AssumeRole"
                 Resource = [
-                    "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_lambda_plan_invoker_name}",
-                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
+                    "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_invoker_name}",
+                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
                 ]
             }
         ]

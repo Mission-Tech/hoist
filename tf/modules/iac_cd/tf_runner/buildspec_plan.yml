@@ -1,0 +1,114 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Installing dependencies..."
+      - yum install -y git jq
+      # Install OpenTofu
+      - |
+        echo "Installing OpenTofu version ${OPENTOFU_VERSION}"
+        curl -L https://github.com/opentofu/opentofu/releases/download/v${OPENTOFU_VERSION}/tofu_${OPENTOFU_VERSION}_linux_arm64.zip -o tofu.zip
+        unzip tofu.zip
+        mv tofu /usr/local/bin/
+        rm tofu.zip
+        chmod +x /usr/local/bin/tofu
+        tofu --version
+
+  pre_build:
+    commands:
+      - echo "Loading sensitive parameters from SSM..."
+      - |
+        if [ ! -z "$PARAMETER_STORE_PREFIX" ]; then
+          # Get all parameters and export as TF_VAR_ environment variables
+          aws ssm get-parameters-by-path \
+            --path "$PARAMETER_STORE_PREFIX" \
+            --recursive \
+            --with-decryption \
+            --query 'Parameters[*].[Name,Value]' \
+            --output text | while read -r name value; do
+              var_name=$(echo $name | sed "s|$PARAMETER_STORE_PREFIX/||" | sed 's/^/TF_VAR_/')
+              export "$var_name=$value"
+              echo "Loaded parameter: $var_name"
+          done
+        fi
+      
+      # Extract metadata from the source artifact
+      - |
+        if [ -f metadata.json ]; then
+          echo "Found metadata.json:"
+          cat metadata.json
+          export COMMIT_SHA=$(jq -r '.commit_sha' metadata.json)
+          export BRANCH=$(jq -r '.branch' metadata.json)
+          export AUTHOR=$(jq -r '.author' metadata.json)
+        fi
+
+  build:
+    commands:
+      - echo "Running terraform plan for environment ${CODEBUILD_WEBHOOK_HEAD_REF:-$ENVIRONMENT}..."
+      
+      # Determine the environment directory
+      - |
+        ENV_DIR=""
+        for dir in "environments/$ENVIRONMENT" "tf/environments/$ENVIRONMENT" "tf/$ENVIRONMENT" "$ENVIRONMENT"; do
+          if [ -d "$dir" ]; then
+            ENV_DIR="$dir"
+            echo "Found environment directory: $ENV_DIR"
+            break
+          fi
+        done
+        
+        if [ -z "$ENV_DIR" ]; then
+          echo "ERROR: Could not find environment directory for $ENVIRONMENT"
+          exit 1
+        fi
+      
+      # Run terraform init
+      - |
+        cd $ENV_DIR
+        echo "Running tofu init..."
+        tofu init -no-color -input=false
+      
+      # Run terraform plan
+      - |
+        echo "Running tofu plan..."
+        if tofu plan -no-color -input=false -out=tfplan; then
+          echo "Terraform plan succeeded"
+          # Show the plan for human readability
+          echo "Terraform plan output:"
+          tofu show -no-color tfplan | tee plan_output.txt
+          echo "SUCCESS" > build_status.txt
+        else
+          echo "Terraform plan failed"
+          echo "FAILED" > build_status.txt
+          echo "Terraform plan failed" > plan_output.txt
+          exit 1
+        fi
+
+  post_build:
+    commands:
+      - |
+        echo "Creating summary..."
+        BUILD_SUCCESS="true"
+        if [ -f "build_status.txt" ] && [ "$(cat build_status.txt)" = "FAILED" ]; then
+          BUILD_SUCCESS="false"
+        fi
+        cat > summary.json <<EOF
+        {
+          "env": "$ENVIRONMENT",
+          "commit_sha": "${COMMIT_SHA:-unknown}",
+          "branch": "${BRANCH:-unknown}",
+          "author": "${AUTHOR:-unknown}",
+          "success": $BUILD_SUCCESS,
+          "plan_output": "$(cat plan_output.txt 2>/dev/null || echo "No plan output" | jq -Rs .)"
+        }
+        EOF
+      
+      - echo "Build completed successfully"
+
+artifacts:
+  files:
+    - '**/*'
+  name: plan-output
