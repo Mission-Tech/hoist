@@ -348,19 +348,6 @@ func runTerraformPlan(workDir string, params UserParameters) (string, error) {
 
     // Use current environment variables (Lambda already has the right credentials)
     env := os.Environ()
-    
-    // Add /opt/bin to PATH for git (from Lambda layer)
-    pathFound := false
-    for i, e := range env {
-        if strings.HasPrefix(e, "PATH=") {
-            env[i] = e + ":/opt/bin"
-            pathFound = true
-            break
-        }
-    }
-    if !pathFound {
-        env = append(env, "PATH=/opt/bin:/usr/local/bin:/usr/bin:/bin")
-    }
 
     // Load sensitive parameters from SSM and add to environment
     ssmParams, err := loadParametersFromSSM()
@@ -380,14 +367,10 @@ func runTerraformPlan(workDir string, params UserParameters) (string, error) {
     initCmd.Dir = tfDir
     initCmd.Env = env
 
-    var initOut bytes.Buffer
-    initCmd.Stdout = &initOut
-    initCmd.Stderr = &initOut
-
-    if err := initCmd.Run(); err != nil {
-        output := initOut.String()
+    initOutput, err := initCmd.CombinedOutput()
+    if err != nil {
         // Include the actual output in the error message, not just "exit status 1"
-        return output, fmt.Errorf("tofu init failed: %s", output)
+        return string(initOutput), fmt.Errorf("tofu init failed: %s", string(initOutput))
     }
 
     // Prepare tofu plan command
@@ -398,16 +381,10 @@ func runTerraformPlan(workDir string, params UserParameters) (string, error) {
     planCmd.Dir = tfDir
     planCmd.Env = env
 
-    var planOut bytes.Buffer
-    planCmd.Stdout = &planOut
-    planCmd.Stderr = &planOut
-
-    err = planCmd.Run()
-    planOutput := planOut.String()
-
+    planOutput, err := planCmd.CombinedOutput()
     if err != nil {
         // Include the actual output in the error message
-        return planOutput, fmt.Errorf("tofu plan failed: %s", planOutput)
+        return string(planOutput), fmt.Errorf("tofu plan failed: %s", string(planOutput))
     }
 
     // Show the plan file to get human-readable output
@@ -415,16 +392,13 @@ func runTerraformPlan(workDir string, params UserParameters) (string, error) {
     showCmd.Dir = tfDir
     showCmd.Env = env
 
-    var showOut bytes.Buffer
-    showCmd.Stdout = &showOut
-    showCmd.Stderr = &showOut
-
-    if err := showCmd.Run(); err != nil {
+    showOutput, err := showCmd.CombinedOutput()
+    if err != nil {
         // If show fails, return the plan output we already have
-        return planOutput, nil
+        return string(planOutput), nil
     }
 
-    return showOut.String(), nil
+    return string(showOutput), nil
 }
 
 func uploadResults(bucket, key string, summary PlanSummary, creds struct {

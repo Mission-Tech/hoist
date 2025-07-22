@@ -126,8 +126,11 @@ module "lambda_terraform_plan" {
         {
             # Pass the parameter store prefix so Lambda knows where to look
             PARAMETER_STORE_PREFIX = local.parameter_prefix
-            # Git layer puts git in /opt/bin
-            GIT_EXEC_PATH = "/opt/bin"
+            # Git layer configuration
+            PATH = "/opt/bin:/usr/local/bin:/usr/bin:/bin"
+            GIT_EXEC_PATH = "/opt/libexec/git-core"  # Git's libexec directory
+            # Ensure TLS/CA works for HTTPS clones
+            SSL_CERT_FILE = "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
         },
         # Add all tfvars as TF_VAR_ environment variables
         { for k, v in var.tfvars : "TF_VAR_${k}" => v }
