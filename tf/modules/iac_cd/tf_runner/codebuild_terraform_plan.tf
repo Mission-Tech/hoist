@@ -1,3 +1,38 @@
+# Data source for VPC
+data "aws_vpc" "main" {
+  filter {
+    name   = "tag:Name"
+    values = [local.conventional_coreinfra_vpc_name]
+  }
+}
+
+# Data source for public subnets (for internet access)
+data "aws_subnets" "public" {
+  filter {
+    name   = "tag:Name"
+    values = local.conventional_coreinfra_public_subnets
+  }
+}
+
+# Security group for CodeBuild
+resource "aws_security_group" "codebuild" {
+  name        = "${var.org}-${var.app}-${var.env}-codebuild-terraform-plan"
+  description = "Security group for CodeBuild terraform plan"
+  vpc_id      = data.aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic for internet access"
+  }
+
+  tags = merge(local.tags, {
+    Name = "${var.org}-${var.app}-${var.env}-codebuild-terraform-plan"
+  })
+}
+
 # CodeBuild project for running terraform plan
 resource "aws_codebuild_project" "terraform_plan" {
     name = "${var.org}-${var.app}-${var.env}-terraform-plan"
@@ -43,6 +78,17 @@ resource "aws_codebuild_project" "terraform_plan" {
     source {
         type = "CODEPIPELINE"
         buildspec = file("${path.module}/buildspec_plan.yml")
+    }
+    
+    # VPC configuration for accessing RDS and other private resources
+    vpc_config {
+        vpc_id = data.aws_vpc.main.id
+        
+        subnets = data.aws_subnets.public.ids
+        
+        security_group_ids = [
+            aws_security_group.codebuild.id
+        ]
     }
     
     tags = local.tags
@@ -103,6 +149,50 @@ resource "aws_iam_role_policy" "codebuild_terraform_plan" {
                     "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${aws_codebuild_project.terraform_plan.name}",
                     "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${aws_codebuild_project.terraform_plan.name}:*"
                 ]
+            },
+            {
+                # VPC permissions for CodeBuild - Network interface operations
+                Effect = "Allow"
+                Action = [
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces"
+                ]
+                Resource = [
+                    "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*"
+                ]
+                Condition = {
+                    StringEquals = {
+                        "ec2:Vpc" = "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:vpc/${data.aws_vpc.main.id}"
+                    }
+                }
+            },
+            {
+                # VPC permissions for CodeBuild - CreateNetworkInterfacePermission
+                Effect = "Allow"
+                Action = [
+                    "ec2:CreateNetworkInterfacePermission"
+                ]
+                Resource = [
+                    "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*"
+                ]
+                Condition = {
+                    StringEquals = {
+                        "ec2:AuthorizedService" = "codebuild.amazonaws.com"
+                    }
+                }
+            },
+            {
+                # VPC permissions for CodeBuild - Describe operations (read-only)
+                Effect = "Allow"
+                Action = [
+                    "ec2:DescribeVpcs",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeDhcpOptions"
+                ]
+                Resource = "*"
+                # Note: These describe operations don't support resource-level permissions
             },
             {
                 Effect = "Allow"
