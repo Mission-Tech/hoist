@@ -53,6 +53,17 @@ resource "aws_iam_role_policy" "lambda_terraform_plan" {
                 # CodePipeline job operations don't support resource-level permissions
                 Resource = "*"
             },
+            {
+                Effect = "Allow"
+                Action = [
+                    "ssm:GetParameter",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath"
+                ]
+                Resource = [
+                    "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${local.parameter_prefix}/*"
+                ]
+            },
         ]
     })
 }
@@ -104,6 +115,16 @@ module "lambda_terraform_plan" {
     # Attach the IAM role
     create_role = false
     lambda_role = aws_iam_role.lambda_terraform_plan.arn
+    
+    # Environment variables
+    environment_variables = merge(
+        {
+            # Pass the parameter store prefix so Lambda knows where to look
+            PARAMETER_STORE_PREFIX = local.parameter_prefix
+        },
+        # Add all tfvars as TF_VAR_ environment variables
+        { for k, v in var.tfvars : "TF_VAR_${k}" => v }
+    )
 
     tags = local.tags
 }

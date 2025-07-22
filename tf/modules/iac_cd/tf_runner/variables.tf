@@ -54,3 +54,16 @@ variable "tools_codepipeline_role_arn" {
     description = "ARN of the CodePipeline role in the tools account that will invoke this Lambda"
     type        = string
 }
+
+variable "tfvars" {
+    description = "Map of terraform variables to pass to the Lambda as environment variables"
+    type        = map(string)
+    default     = {}
+}
+
+variable "tfvars_sensitive" {
+    description = "Map of sensitive terraform variables to store in Parameter Store"
+    type        = map(string)
+    default     = {}
+    sensitive   = true
+}

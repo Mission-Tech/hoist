@@ -19,6 +19,7 @@ import (
     "github.com/aws/aws-sdk-go/service/codepipeline"
     "github.com/aws/aws-sdk-go/service/s3"
     "github.com/aws/aws-sdk-go/service/s3/s3manager"
+    "github.com/aws/aws-sdk-go/service/ssm"
 )
 
 // CodePipeline event structure
@@ -58,6 +59,8 @@ type CodePipelineEvent struct {
 
 type UserParameters struct {
     Env          string `json:"env"`
+    Org          string `json:"org"`
+    AccountID    string `json:"account_id"`
     MetadataPath string `json:"metadata_path"`
 }
 
@@ -102,7 +105,7 @@ func handler(ctx context.Context, event CodePipelineEvent) error {
     if err := json.Unmarshal([]byte(userParamsStr), &userParams); err != nil {
         return reportFailure(jobID, fmt.Sprintf("Failed to parse user parameters: %v", err))
     }
-    
+
     fmt.Printf("User parameters: env=%s, metadata_path=%s\n", userParams.Env, userParams.MetadataPath)
 
     // Get input artifact location
@@ -149,7 +152,7 @@ func handler(ctx context.Context, event CodePipelineEvent) error {
     }
 
     // Run terraform plan
-    planOutput, err := runTerraformPlan(tempDir, userParams.Env)
+    planOutput, err := runTerraformPlan(tempDir, userParams)
     if err != nil {
         // Even if plan fails, we want to save the output
         summary := PlanSummary{
@@ -267,24 +270,100 @@ func unzip(src, dest string) error {
 
 // Removed getSessionForAccount - Lambda runs in the target account
 
-func runTerraformPlan(workDir, environment string) (string, error) {
+// loadParametersFromSSM reads all parameters from Parameter Store and returns them as TF_VAR_ env vars
+func loadParametersFromSSM() (map[string]string, error) {
+    parameterPrefix := os.Getenv("PARAMETER_STORE_PREFIX")
+    if parameterPrefix == "" {
+        // No parameters to load
+        return nil, nil
+    }
+
+    sess := session.Must(session.NewSession())
+    ssmClient := ssm.New(sess)
+
+    envVars := make(map[string]string)
+
+    // Get all parameters by path
+    input := &ssm.GetParametersByPathInput{
+        Path:           aws.String(parameterPrefix),
+        Recursive:      aws.Bool(true),
+        WithDecryption: aws.Bool(true),
+    }
+
+    err := ssmClient.GetParametersByPathPages(input, func(page *ssm.GetParametersByPathOutput, lastPage bool) bool {
+        for _, param := range page.Parameters {
+            // Extract the parameter name without the prefix
+            paramName := strings.TrimPrefix(*param.Name, parameterPrefix+"/")
+            // Set as TF_VAR_ environment variable
+            envVars[fmt.Sprintf("TF_VAR_%s", paramName)] = *param.Value
+        }
+        return !lastPage
+    })
+
+    if err != nil {
+        return nil, fmt.Errorf("failed to load parameters from SSM: %w", err)
+    }
+
+    return envVars, nil
+}
+
+func runTerraformPlan(workDir string, params UserParameters) (string, error) {
     // Use the bundled OpenTofu binary
     tofuPath := "/var/task/tofu"
     if _, err := os.Stat(tofuPath); os.IsNotExist(err) {
         return "", fmt.Errorf("opentofu binary not found at %s", tofuPath)
     }
 
-    // Set working directory
-    tfDir := filepath.Join(workDir, "tf", environment)
-    if _, err := os.Stat(tfDir); os.IsNotExist(err) {
-        return "", fmt.Errorf("environment directory not found: %s", tfDir)
+    // List contents of workDir for debugging
+    fmt.Printf("Contents of workDir %s:\n", workDir)
+    files, _ := os.ReadDir(workDir)
+    for _, f := range files {
+        if f.IsDir() {
+            fmt.Printf("  [DIR] %s\n", f.Name())
+        } else {
+            fmt.Printf("  [FILE] %s\n", f.Name())
+        }
+    }
+
+    // Try multiple possible directory structures
+    var tfDir string
+    possiblePaths := []string{
+        filepath.Join(workDir, "environments", params.Env),
+        filepath.Join(workDir, "tf", "environments", params.Env),
+        filepath.Join(workDir, "tf", params.Env),
+        filepath.Join(workDir, params.Env),
+    }
+
+    for _, path := range possiblePaths {
+        if _, err := os.Stat(path); err == nil {
+            tfDir = path
+            fmt.Printf("Found terraform directory at: %s\n", tfDir)
+            break
+        }
+    }
+
+    if tfDir == "" {
+        return "", fmt.Errorf("environment directory not found in any of: %v", possiblePaths)
     }
 
     // Use current environment variables (Lambda already has the right credentials)
     env := os.Environ()
 
-    // Run tofu init with no color output for cleaner logs
-    initCmd := exec.Command(tofuPath, "init", "-no-color")
+    // Load sensitive parameters from SSM and add to environment
+    ssmParams, err := loadParametersFromSSM()
+    if err != nil {
+        return "", fmt.Errorf("failed to load SSM parameters: %w", err)
+    }
+
+    // Add SSM parameters to environment
+    for k, v := range ssmParams {
+        env = append(env, fmt.Sprintf("%s=%s", k, v))
+    }
+
+    fmt.Printf("Loaded %d parameters from SSM\n", len(ssmParams))
+
+    // Run tofu init with no color output and non-interactive mode
+    initCmd := exec.Command(tofuPath, "init", "-no-color", "-input=false")
     initCmd.Dir = tfDir
     initCmd.Env = env
 
@@ -293,26 +372,13 @@ func runTerraformPlan(workDir, environment string) (string, error) {
     initCmd.Stderr = &initOut
 
     if err := initCmd.Run(); err != nil {
-        return initOut.String(), fmt.Errorf("tofu init failed: %w", err)
+        output := initOut.String()
+        // Include the actual output in the error message, not just "exit status 1"
+        return output, fmt.Errorf("tofu init failed: %s", output)
     }
 
     // Prepare tofu plan command
-    planArgs := []string{"plan", "-out=tfplan", "-no-color"}
-
-    // Add environment-specific variables
-    switch environment {
-    case "dev", "prod":
-        if toolsAccountID := os.Getenv("TOOLS_ACCOUNT_ID"); toolsAccountID != "" {
-            planArgs = append(planArgs, fmt.Sprintf("-var=tools_account_id=%s", toolsAccountID))
-        }
-    case "tools":
-        if devAccountID := os.Getenv("DEV_ACCOUNT_ID"); devAccountID != "" {
-            planArgs = append(planArgs, fmt.Sprintf("-var=dev_account_id=%s", devAccountID))
-        }
-        if prodAccountID := os.Getenv("PROD_ACCOUNT_ID"); prodAccountID != "" {
-            planArgs = append(planArgs, fmt.Sprintf("-var=prod_account_id=%s", prodAccountID))
-        }
-    }
+    planArgs := []string{"plan", "-out=tfplan", "-no-color", "-input=false"}
 
     // Run tofu plan
     planCmd := exec.Command(tofuPath, planArgs...)
@@ -323,11 +389,12 @@ func runTerraformPlan(workDir, environment string) (string, error) {
     planCmd.Stdout = &planOut
     planCmd.Stderr = &planOut
 
-    err := planCmd.Run()
+    err = planCmd.Run()
     planOutput := planOut.String()
 
     if err != nil {
-        return planOutput, fmt.Errorf("tofu plan failed: %w", err)
+        // Include the actual output in the error message
+        return planOutput, fmt.Errorf("tofu plan failed: %s", planOutput)
     }
 
     // Show the plan file to get human-readable output
@@ -412,18 +479,29 @@ func uploadResults(bucket, key string, summary PlanSummary, creds struct {
 }
 
 func reportSuccess(jobID string) error {
+    fmt.Printf("Reporting SUCCESS to CodePipeline for job %s\n", jobID)
     sess := session.Must(session.NewSession())
     cp := codepipeline.New(sess)
 
     _, err := cp.PutJobSuccessResult(&codepipeline.PutJobSuccessResultInput{
         JobId: aws.String(jobID),
     })
+    if err != nil {
+        fmt.Printf("ERROR: Failed to report success to CodePipeline: %v\n", err)
+    }
     return err
 }
 
 func reportFailure(jobID, message string) error {
+    fmt.Printf("Reporting FAILURE to CodePipeline for job %s: %s\n", jobID, message)
     sess := session.Must(session.NewSession())
     cp := codepipeline.New(sess)
+
+    // Truncate message if it's too long (CodePipeline has a 5000 character limit)
+    const maxMessageLength = 4900 // Leave some buffer
+    if len(message) > maxMessageLength {
+        message = message[:maxMessageLength] + "... (truncated)"
+    }
 
     _, err := cp.PutJobFailureResult(&codepipeline.PutJobFailureResultInput{
         JobId: aws.String(jobID),
@@ -432,6 +510,9 @@ func reportFailure(jobID, message string) error {
             Type:    aws.String("JobFailed"),
         },
     })
+    if err != nil {
+        fmt.Printf("ERROR: Failed to report failure to CodePipeline: %v\n", err)
+    }
     return err
 }
 

@@ -11,4 +11,19 @@ module "tf_runner" {
     opentofu_version = var.opentofu_version
     tools_account_id = data.aws_caller_identity.current.account_id
     tools_codepipeline_role_arn = aws_iam_role.codepipeline.arn
+    
+    # Pass terraform variables
+    tfvars = {
+        org = var.org
+        env = local.env
+        aws_account_id = data.aws_caller_identity.current.account_id
+        # Add environment-specific variables
+        dev_account_id = var.dev_account_id
+        prod_account_id = var.prod_account_id
+    }
+    
+    # Add any sensitive variables here
+    tfvars_sensitive = {
+        slack_cd_webhook_url = var.slack_cd_webhook_url
+    }
 }
