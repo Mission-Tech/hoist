@@ -76,7 +76,7 @@ resource "aws_iam_role_policy_attachment" "codebuild_terraform_plan_readonly" {
 
 # Use base_meta module to grant terraform state access
 module "base_meta" {
-    source = "github.com/Mission-Tech/hoist//tf/modules/base_meta?ref=base_meta/v0.1.9"
+    source = "github.com/Mission-Tech/hoist//tf/modules/base_meta?ref=experimental/iac_cd/v0.0.6"
 
     tfstate_access_role_name = aws_iam_role.codebuild_terraform_plan.name
     env                      = var.env
