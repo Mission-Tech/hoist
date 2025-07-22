@@ -67,3 +67,16 @@ variable "tfvars_sensitive" {
     default     = {}
     sensitive   = true
 }
+
+# Optional VPC configuration
+variable "vpc_id" {
+    description = "VPC ID for CodeBuild. If not provided, will try to look up by convention"
+    type        = string
+    default     = ""
+}
+
+variable "public_subnet_ids" {
+    description = "Public subnet IDs for CodeBuild. If not provided, will try to look up by convention"
+    type        = list(string)
+    default     = []
+}

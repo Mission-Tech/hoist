@@ -28,4 +28,8 @@ module "tf_runner" {
     tfvars_sensitive = {
         slack_cd_webhook_url = var.slack_cd_webhook_url
     }
+    
+    # Pass VPC configuration if provided
+    vpc_id = var.vpc_id
+    public_subnet_ids = var.public_subnet_ids
 }

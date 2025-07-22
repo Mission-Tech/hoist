@@ -1,13 +1,26 @@
-# Data source for VPC
-data "aws_vpc" "main" {
+# Determine VPC and subnet IDs
+locals {
+  # Use provided VPC ID or look it up by convention
+  vpc_id = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.lookup[0].id
+  
+  # Use provided subnet IDs or look them up by convention
+  subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnets.lookup[0].ids
+}
+
+# Data source for VPC (only if not provided via variable)
+data "aws_vpc" "lookup" {
+  count = var.vpc_id == "" ? 1 : 0
+  
   filter {
     name   = "tag:Name"
     values = [local.conventional_coreinfra_vpc_name]
   }
 }
 
-# Data source for public subnets (for internet access)
-data "aws_subnets" "public" {
+# Data source for public subnets (only if not provided via variable)
+data "aws_subnets" "lookup" {
+  count = length(var.public_subnet_ids) == 0 ? 1 : 0
+  
   filter {
     name   = "tag:Name"
     values = local.conventional_coreinfra_public_subnets
@@ -18,7 +31,7 @@ data "aws_subnets" "public" {
 resource "aws_security_group" "codebuild" {
   name        = "${var.org}-${var.app}-${var.env}-codebuild-terraform-plan"
   description = "Security group for CodeBuild terraform plan"
-  vpc_id      = data.aws_vpc.main.id
+  vpc_id      = local.vpc_id
 
   egress {
     from_port   = 0
@@ -82,9 +95,9 @@ resource "aws_codebuild_project" "terraform_plan" {
     
     # VPC configuration for accessing RDS and other private resources
     vpc_config {
-        vpc_id = data.aws_vpc.main.id
+        vpc_id = local.vpc_id
         
-        subnets = data.aws_subnets.public.ids
+        subnets = local.subnet_ids
         
         security_group_ids = [
             aws_security_group.codebuild.id

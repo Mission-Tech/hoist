@@ -81,3 +81,15 @@ variable "pipeline_artifacts_kms_key_id" {
     type = string
 }
 
+variable "vpc_id" {
+    description = "VPC ID for CodeBuild projects. If not provided, will look up by convention"
+    type        = string
+    default     = ""
+}
+
+variable "public_subnet_ids" {
+    description = "Public subnet IDs for CodeBuild projects. If not provided, will look up by convention"
+    type        = list(string)
+    default     = []
+}
+
