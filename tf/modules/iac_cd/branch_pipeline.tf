@@ -8,6 +8,12 @@ resource "aws_codepipeline" "branch" {
     artifact_store {
         location = aws_s3_bucket.tf_artifacts.id
         type     = "S3"
+        
+        # Use the shared KMS key for encryption
+        encryption_key {
+            id   = local.pipeline_kms_key_id
+            type = "KMS"
+        }
     }
 
     stage {

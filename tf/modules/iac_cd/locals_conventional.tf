@@ -14,4 +14,8 @@ locals {
     # CodeBuild service role names created by tf_runner module in dev/prod accounts
     conventional_dev_codebuild_plan_role_name = "${var.org}-${var.app}-dev-codebuild-terraform-plan"
     conventional_prod_codebuild_plan_role_name = "${var.org}-${var.app}-prod-codebuild-terraform-plan"
+    
+    # KMS key name created by coreinfra in tools account
+    conventional_pipeline_kms_key_name = "${var.org}-coreinfra-tools-pipeline-artifacts"
+    conventional_pipeline_kms_key_alias = "alias/${local.conventional_pipeline_kms_key_name}"
 }

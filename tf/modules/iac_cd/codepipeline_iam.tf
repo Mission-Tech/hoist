@@ -91,6 +91,17 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_invoker_name}",
                     "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
                 ]
+            },
+            {
+                Effect = "Allow"
+                Action = [
+                    "kms:Decrypt",
+                    "kms:DescribeKey",
+                    "kms:GenerateDataKey",
+                    "kms:CreateGrant",
+                    "kms:RetireGrant"
+                ]
+                Resource = "arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/${local.pipeline_kms_key_id}"
             }
         ]
     })

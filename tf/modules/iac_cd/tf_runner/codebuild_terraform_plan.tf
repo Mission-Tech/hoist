@@ -143,6 +143,26 @@ resource "aws_iam_role_policy" "codebuild_terraform_plan" {
                     "s3:GetBucketLocation"
                 ]
                 Resource = "arn:aws:s3:::${local.conventional_tools_pipeline_artifacts_bucket}"
+            },
+            {
+                # Allow KMS operations for cross-account S3 access
+                # The tools account pipeline bucket uses KMS encryption
+                Effect = "Allow"
+                Action = [
+                    "kms:Decrypt",
+                    "kms:DescribeKey",
+                    "kms:GenerateDataKey"  # Needed for encryption when writing artifacts
+                ]
+                Resource = [
+                    "arn:aws:kms:${data.aws_region.current.name}:${var.tools_account_id}:key/*"
+                ]
+                Condition = {
+                    StringLike = {
+                        "kms:ViaService" = [
+                            "s3.${data.aws_region.current.name}.amazonaws.com"
+                        ]
+                    }
+                }
             }
         ]
     })
