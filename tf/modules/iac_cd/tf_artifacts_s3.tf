@@ -61,45 +61,49 @@ resource "aws_s3_bucket_lifecycle_configuration" "tf_artifacts" {
 
 # No EventBridge needed - this is only for pipeline internal use
 
-# Bucket policy to allow cross-account access from dev/prod CodeBuild
-resource "aws_s3_bucket_policy" "tf_artifacts" {
-    bucket = aws_s3_bucket.tf_artifacts.id
+# TODO: Add bucket policy for cross-account access after confirming it works in same account
+# The bucket policy below will be needed once we have dev/prod CodeBuild projects deployed
+# and need cross-account access. For now, commenting out to avoid circular dependencies.
 
-    policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-            {
-                Sid    = "AllowCrossAccountCodeBuildAccess"
-                Effect = "Allow"
-                Principal = {
-                    AWS = [
-                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
-                        # TODO: Uncomment after prod is deployed
-                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
-                    ]
-                }
-                Action = [
-                    "s3:GetObject",
-                    "s3:GetObjectVersion"
-                ]
-                Resource = "${aws_s3_bucket.tf_artifacts.arn}/*"
-            },
-            {
-                Sid    = "AllowCrossAccountCodeBuildListBucket"
-                Effect = "Allow"
-                Principal = {
-                    AWS = [
-                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
-                        # TODO: Uncomment after prod is deployed
-                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
-                    ]
-                }
-                Action = [
-                    "s3:ListBucket",
-                    "s3:GetBucketLocation"
-                ]
-                Resource = aws_s3_bucket.tf_artifacts.arn
-            }
-        ]
-    })
-}
+# # Bucket policy to allow cross-account access from dev/prod CodeBuild
+# resource "aws_s3_bucket_policy" "tf_artifacts" {
+#     bucket = aws_s3_bucket.tf_artifacts.id
+# 
+#     policy = jsonencode({
+#         Version = "2012-10-17"
+#         Statement = [
+#             {
+#                 Sid    = "AllowCrossAccountCodeBuildAccess"
+#                 Effect = "Allow"
+#                 Principal = {
+#                     AWS = [
+#                         "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
+#                         # TODO: Uncomment after prod is deployed
+#                         # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
+#                     ]
+#                 }
+#                 Action = [
+#                     "s3:GetObject",
+#                     "s3:GetObjectVersion"
+#                 ]
+#                 Resource = "${aws_s3_bucket.tf_artifacts.arn}/*"
+#             },
+#             {
+#                 Sid    = "AllowCrossAccountCodeBuildListBucket"
+#                 Effect = "Allow"
+#                 Principal = {
+#                     AWS = [
+#                         "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
+#                         # TODO: Uncomment after prod is deployed
+#                         # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
+#                     ]
+#                 }
+#                 Action = [
+#                     "s3:ListBucket",
+#                     "s3:GetBucketLocation"
+#                 ]
+#                 Resource = aws_s3_bucket.tf_artifacts.arn
+#             }
+#         ]
+#     })
+# }

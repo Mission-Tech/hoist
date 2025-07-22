@@ -23,16 +23,24 @@ phases:
       - |
         if [ ! -z "$PARAMETER_STORE_PREFIX" ]; then
           # Get all parameters and export as TF_VAR_ environment variables
+          # Export them to a file first to avoid subshell issues
           aws ssm get-parameters-by-path \
             --path "$PARAMETER_STORE_PREFIX" \
             --recursive \
             --with-decryption \
             --query 'Parameters[*].[Name,Value]' \
-            --output text | while read -r name value; do
-              var_name=$(echo $name | sed "s|$PARAMETER_STORE_PREFIX/||" | sed 's/^/TF_VAR_/')
-              export "$var_name=$value"
-              echo "Loaded parameter: $var_name"
-          done
+            --output text > /tmp/ssm_params.txt
+          
+          # Now source them in the main shell
+          while IFS=$'\t' read -r name value; do
+            var_name=$(echo $name | sed "s|$PARAMETER_STORE_PREFIX/||" | sed 's/^/TF_VAR_/')
+            export "$var_name=$value"
+            echo "export $var_name='$value'" >> /tmp/env_vars.sh
+            echo "Loaded parameter: $var_name"
+          done < /tmp/ssm_params.txt
+          
+          # Source the environment variables file
+          source /tmp/env_vars.sh
         fi
       
       # Extract metadata from the source artifact
@@ -48,6 +56,13 @@ phases:
   build:
     commands:
       - echo "Running terraform plan for environment ${CODEBUILD_WEBHOOK_HEAD_REF:-$ENVIRONMENT}..."
+      
+      # Source the environment variables if they exist
+      - |
+        if [ -f /tmp/env_vars.sh ]; then
+          echo "Sourcing environment variables..."
+          source /tmp/env_vars.sh
+        fi
       
       # Determine the environment directory
       - |
