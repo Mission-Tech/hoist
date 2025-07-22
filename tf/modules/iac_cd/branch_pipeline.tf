@@ -106,7 +106,7 @@ resource "aws_codepipeline" "branch" {
             input_artifacts = ["dev_plan_output", "tools_plan_output"] # TODO(izaak): add prod_plan_output
 
             configuration = {
-                FunctionName = module.lambda_consolidate_results.lambda_function_name
+                FunctionName = aws_lambda_function.consolidate_simple.function_name
                 UserParameters = jsonencode({})
             }
         }

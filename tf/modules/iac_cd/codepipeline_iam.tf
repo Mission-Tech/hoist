@@ -60,7 +60,7 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "lambda:InvokeFunction"
                 ]
                 Resource = [
-                    module.lambda_consolidate_results.lambda_function_arn
+                    aws_lambda_function.consolidate_simple.arn
                 ]
             },
             {

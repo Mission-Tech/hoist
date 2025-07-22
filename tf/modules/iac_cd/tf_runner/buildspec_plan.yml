@@ -71,12 +71,17 @@ phases:
       - |
         cd $ROOT_MODULE_DIR
         echo "Running tofu init in $ROOT_MODULE_DIR..."
-        tofu init -no-color -input=false
+        tofu init -input=false
       
       # Run terraform plan
       - |
         echo "Running tofu plan..."
-        if tofu plan -no-color -input=false -out=tfplan; then
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "-------------Begin Plan----------------"
+        echo "---------------------------------------"
+        if tofu plan -input=false -out=tfplan; then
           echo "Terraform plan succeeded"
           # Show the plan for human readability
           echo "Terraform plan output:"
@@ -88,6 +93,11 @@ phases:
           echo "Terraform plan failed" > plan_output.txt
           exit 1
         fi
+        echo "---------------------------------------"
+        echo "--------------End Plan-----------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
 
   post_build:
     commands:
