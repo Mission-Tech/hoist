@@ -55,6 +55,11 @@ variable "tools_codepipeline_role_arn" {
     type        = string
 }
 
+variable "pipeline_artifacts_kms_key_id" {
+    description = "KMS key id for IAC CD code pipeline artifacts"
+    type = string
+}
+
 variable "tfvars" {
     description = "Map of terraform variables to pass to the Lambda as environment variables"
     type        = map(string)

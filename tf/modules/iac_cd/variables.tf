@@ -76,3 +76,8 @@ variable "github_org" {
     type        = string
 }
 
+variable "pipeline_artifacts_kms_key_id" {
+    description = "KMS key id for IAC CD code pipeline artifacts"
+    type = string
+}
+

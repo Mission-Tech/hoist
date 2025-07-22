@@ -11,7 +11,7 @@ resource "aws_codepipeline" "branch" {
         
         # Use the shared KMS key for encryption
         encryption_key {
-            id   = data.aws_kms_key.pipeline_artifacts.id
+            id   = var.pipeline_artifacts_kms_key_id
             type = "KMS"
         }
     }

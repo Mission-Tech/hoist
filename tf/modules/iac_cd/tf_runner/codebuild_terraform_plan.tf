@@ -159,7 +159,7 @@ resource "aws_iam_role_policy" "codebuild_terraform_plan" {
                     "kms:GenerateDataKey"  # Needed for encryption when writing artifacts
                 ]
                 Resource = [
-                    data.aws_kms_key.pipeline_artifacts.arn
+                    "arn:aws:iam::${var.tools_account_id}:kms/${var.pipeline_artifacts_kms_key_id}"
                 ]
                 Condition = {
                     StringLike = {
