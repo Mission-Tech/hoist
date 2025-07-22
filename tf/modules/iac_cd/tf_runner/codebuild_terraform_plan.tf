@@ -1,8 +1,3 @@
-# Data source to look up the KMS key by alias
-data "aws_kms_key" "pipeline_artifacts" {
-    key_id = local.conventional_pipeline_kms_key_alias
-}
-
 # CodeBuild project for running terraform plan
 resource "aws_codebuild_project" "terraform_plan" {
     name = "${var.org}-${var.app}-${var.env}-terraform-plan"
