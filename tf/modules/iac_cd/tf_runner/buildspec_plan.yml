@@ -144,7 +144,7 @@ phases:
                 update: ($counts.update // 0),
                 delete: ($counts.delete // 0),
                 plan_output: $plan_output
-              }' > summary.json
+              }' > "hoist_summary_${ENVIRONMENT}.json"
       
       - echo "Build completed successfully"
 

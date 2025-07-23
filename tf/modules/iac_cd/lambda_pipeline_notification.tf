@@ -73,8 +73,14 @@ resource "aws_iam_role_policy" "lambda_pipeline_notification" {
             },
             {
                 Effect = "Allow"
-                Action = "s3:GetObject"
-                Resource = "${aws_s3_bucket.tf_artifacts.arn}/*"
+                Action = [
+                    "s3:GetObject",
+                    "s3:ListBucket"
+                ]
+                Resource = [
+                    "${aws_s3_bucket.tf_artifacts.arn}/*",
+                    aws_s3_bucket.tf_artifacts.arn
+                ]
             },
             {
                 Effect = "Allow"
@@ -189,7 +195,13 @@ def lambda_handler(event, context):
                 
                 # Get the output details
                 output = action.get('output', {})
-                external_execution_id = output.get('externalExecutionId', '')
+                print(f"Action output keys for {env}: {list(output.keys())}")
+                print(f"Full output for {env}: {json.dumps(output)}")
+                
+                # The externalExecutionId is in executionResult, not directly in output
+                execution_result = output.get('executionResult', {})
+                external_execution_id = execution_result.get('externalExecutionId', '')
+                print(f"External execution ID for {env}: {external_execution_id}")
                 
                 if external_execution_id:
                     build_id = external_execution_id
@@ -214,18 +226,40 @@ def lambda_handler(event, context):
                                     s3_path = location.replace('arn:aws:s3:::', '')
                                     bucket, key = s3_path.split('/', 1)
                                     
-                                    # Get summary.json
+                                    # Get hoist_summary.json from the zip artifact
                                     try:
-                                        summary_key = f"{key}/summary.json"
-                                        print(f"Getting summary from s3://{bucket}/{summary_key}")
-                                        obj = s3.get_object(Bucket=bucket, Key=summary_key)
-                                        summary = json.loads(obj['Body'].read())
+                                        print(f"Getting zip artifact from s3://{bucket}/{key}")
+                                        obj = s3.get_object(Bucket=bucket, Key=key)
                                         
-                                        # Use the structured counts from buildspec
-                                        results[env]['create'] = summary.get('create', 0)
-                                        results[env]['update'] = summary.get('update', 0)
-                                        results[env]['delete'] = summary.get('delete', 0)
-                                        print(f"Resource counts for {env}: create={results[env]['create']}, update={results[env]['update']}, delete={results[env]['delete']}")
+                                        # The artifact is a zip file, we need to extract hoist_summary.json from it
+                                        import zipfile
+                                        import io
+                                        
+                                        zip_data = obj['Body'].read()
+                                        with zipfile.ZipFile(io.BytesIO(zip_data)) as zip_file:
+                                            print(f"Looking for hoist_summary_{env}.json in zip for {env}")
+                                            
+                                            # Find hoist_summary_{env}.json anywhere in the zip
+                                            summary_file = None
+                                            target_filename = f"hoist_summary_{env}.json"
+                                            for file_path in zip_file.namelist():
+                                                if file_path.endswith(target_filename):
+                                                    summary_file = file_path
+                                                    break
+                                            
+                                            if summary_file:
+                                                print(f"Found {target_filename} at {summary_file}")
+                                                summary_content = zip_file.read(summary_file).decode('utf-8')
+                                                summary = json.loads(summary_content)
+                                                print(f"Raw {target_filename} content for {env}: {json.dumps(summary)}")
+                                                
+                                                # Use the structured counts from buildspec
+                                                results[env]['create'] = summary.get('create', 0)
+                                                results[env]['update'] = summary.get('update', 0)
+                                                results[env]['delete'] = summary.get('delete', 0)
+                                                print(f"Extracted counts for {env}: create={results[env]['create']}, update={results[env]['update']}, delete={results[env]['delete']}")
+                                            else:
+                                                print(f"{target_filename} not found in zip for {env}")
                                         
                                     except Exception as e:
                                         print(f"Error reading summary for {env}: {e}")
@@ -314,11 +348,11 @@ def send_slack_notification(pipeline_name, execution_id, state, results, region)
             # Build resource change summary
             changes = []
             if result['create'] > 0:
-                changes.append(f"+{result['create']}")
+                changes.append(f"+{result['create']} create")
             if result['update'] > 0:
-                changes.append(f"~{result['update']}")
+                changes.append(f"~{result['update']} update")
             if result['delete'] > 0:
-                changes.append(f"-{result['delete']}")
+                changes.append(f"-{result['delete']} delete")
             
             change_summary = f" ({', '.join(changes)})" if changes else " (no changes)"
             
