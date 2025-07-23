@@ -19,6 +19,9 @@ phases:
 
   pre_build:
     commands:
+      - echo "Setting up terraform plugin cache..."
+      - export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+      - mkdir -p $TF_PLUGIN_CACHE_DIR
       - echo "Loading sensitive parameters from SSM..."
       - |
         if [ ! -z "$PARAMETER_STORE_PREFIX" ]; then
@@ -107,16 +110,41 @@ phases:
         if [ -f "build_status.txt" ] && [ "$(cat build_status.txt)" = "FAILED" ]; then
           BUILD_SUCCESS="false"
         fi
-        cat > summary.json <<EOF
-        {
-          "env": "$ENVIRONMENT",
-          "commit_sha": "${COMMIT_SHA:-unknown}",
-          "branch": "${BRANCH:-unknown}",
-          "author": "${AUTHOR:-unknown}",
-          "success": $BUILD_SUCCESS,
-          "plan_output": "$(cat plan_output.txt 2>/dev/null || echo "No plan output" | jq -Rs .)"
-        }
-        EOF
+        
+        # Extract resource change counts from terraform plan
+        if [ -f "tfplan" ] && [ "$BUILD_SUCCESS" = "true" ]; then
+          tofu show -json tfplan | jq -r '
+            .resource_changes
+            | map(select(.change.actions != ["no-op"]))
+            | group_by(.change.actions[0])
+            | map({(.[0].change.actions[0]): length})
+            | add // {}
+          ' > counts.json
+        else
+          echo '{}' > counts.json
+        fi
+        
+        # Create summary with counts
+        jq -n --argjson counts "$(cat counts.json)" \
+              --arg env "$ENVIRONMENT" \
+              --arg commit_sha "${COMMIT_SHA:-unknown}" \
+              --arg branch "${BRANCH:-unknown}" \
+              --arg author "${AUTHOR:-unknown}" \
+              --argjson success $BUILD_SUCCESS \
+              --arg build_id "$CODEBUILD_BUILD_ID" \
+              --arg plan_output "$(cat plan_output.txt 2>/dev/null || echo "No plan output")" \
+              '{
+                env: $env,
+                commit_sha: $commit_sha,
+                branch: $branch,
+                author: $author,
+                success: $success,
+                build_id: $build_id,
+                create: ($counts.create // 0),
+                update: ($counts.update // 0),
+                delete: ($counts.delete // 0),
+                plan_output: $plan_output
+              }' > summary.json
       
       - echo "Build completed successfully"
 

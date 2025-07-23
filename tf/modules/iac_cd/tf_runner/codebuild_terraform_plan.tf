@@ -8,6 +8,11 @@ resource "aws_codebuild_project" "terraform_plan" {
         type = "CODEPIPELINE"
     }
     
+    cache {
+        type = "LOCAL"
+        modes = ["LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"]
+    }
+    
     environment {
         compute_type                = "BUILD_GENERAL1_SMALL"
         image                      = "aws/codebuild/amazonlinux2-aarch64-standard:3.0"

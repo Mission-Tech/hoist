@@ -1,7 +1,11 @@
 # CodePipeline for Terraform Plan (branch pushes) - runs in parallel across all accounts
 
+locals {
+    branch_pipeline_name = "${var.org}-${var.app}-${local.env}-terraform-plan"
+}
+
 resource "aws_codepipeline" "branch" {
-    name     = "${var.org}-${var.app}-${local.env}-terraform-plan"
+    name     = local.branch_pipeline_name
     role_arn = aws_iam_role.codepipeline.arn
     pipeline_type = "V2"
 
@@ -94,23 +98,6 @@ resource "aws_codepipeline" "branch" {
         }
     }
 
-    stage {
-        name = "Report"
-
-        action {
-            name            = "ConsolidateResults"
-            category        = "Invoke"
-            owner           = "AWS"
-            provider        = "Lambda"
-            version         = "1"
-            input_artifacts = ["dev_plan_output", "tools_plan_output"] # TODO(izaak): add prod_plan_output
-
-            configuration = {
-                FunctionName = aws_lambda_function.consolidate_simple.function_name
-                UserParameters = jsonencode({})
-            }
-        }
-    }
 
     # No pipeline variables needed - metadata comes from files in the artifact
 

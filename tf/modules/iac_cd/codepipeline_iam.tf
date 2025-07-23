@@ -57,15 +57,6 @@ resource "aws_iam_role_policy" "codepipeline" {
             {
                 Effect = "Allow"
                 Action = [
-                    "lambda:InvokeFunction"
-                ]
-                Resource = [
-                    aws_lambda_function.consolidate_simple.arn
-                ]
-            },
-            {
-                Effect = "Allow"
-                Action = [
                     "logs:CreateLogGroup",
                     "logs:CreateLogStream",
                     "logs:PutLogEvents"
