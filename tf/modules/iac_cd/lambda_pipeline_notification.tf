@@ -63,7 +63,9 @@ resource "aws_iam_role_policy" "lambda_pipeline_notification" {
                 ]
                 Resource = [
                     aws_codepipeline.branch.arn,
-                    "${aws_codepipeline.branch.arn}/*"
+                    "${aws_codepipeline.branch.arn}/*",
+                    aws_codepipeline.main.arn,
+                    "${aws_codepipeline.main.arn}/*"
                 ]
             },
             {
@@ -103,7 +105,7 @@ resource "aws_cloudwatch_event_rule" "pipeline_execution_notification" {
         source = ["aws.codepipeline"]
         detail-type = ["CodePipeline Pipeline Execution State Change"]
         detail = {
-            pipeline = [aws_codepipeline.branch.name]
+            pipeline = [aws_codepipeline.branch.name, aws_codepipeline.main.name]
             state = ["SUCCEEDED", "FAILED", "STOPPED"]
         }
     })
@@ -175,9 +177,18 @@ def lambda_handler(event, context):
             action_name = action.get('actionName', '')
             print(f"Found action: {action_name} in stage: {stage_name}")
             
-            if stage_name == 'TerraformPlan' and action_name.startswith('Plan'):
-                env = action_name.replace('Plan', '').lower()
-                print(f"Processing plan action for environment: {env}")
+            # Handle both plan and apply actions
+            if (stage_name == 'TerraformPlan' and action_name.startswith('Plan')) or \
+               (stage_name == 'TerraformApply' and action_name.startswith('Apply')):
+                
+                if action_name.startswith('Plan'):
+                    env = action_name.replace('Plan', '').lower()
+                    operation = 'plan'
+                elif action_name.startswith('Apply'):
+                    env = action_name.replace('Apply', '').lower()
+                    operation = 'apply'
+                
+                print(f"Processing {operation} action for environment: {env}")
                 
                 status = action.get('status', 'Unknown')
                 print(f"Action status: {status}")

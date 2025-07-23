@@ -75,9 +75,11 @@ resource "aws_s3_bucket_policy" "tf_artifacts" {
                 Effect = "Allow"
                 Principal = {
                     AWS = [
-                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
+                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}",
+                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_apply_role_name}"
                         # TODO: Uncomment after prod is deployed
-                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
+                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}",
+                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_apply_role_name}"
                     ]
                 }
                 Action = [
@@ -92,9 +94,11 @@ resource "aws_s3_bucket_policy" "tf_artifacts" {
                 Effect = "Allow"
                 Principal = {
                     AWS = [
-                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}"
+                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_role_name}",
+                        "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_apply_role_name}"
                         # TODO: Uncomment after prod is deployed
-                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}"
+                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_role_name}",
+                        # "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_apply_role_name}"
                     ]
                 }
                 Action = [

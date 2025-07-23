@@ -21,10 +21,40 @@ resource "aws_cloudwatch_event_rule" "branch_pipeline_trigger" {
     tags = local.tags
 }
 
+# EventBridge rule to trigger main pipeline on S3 uploads to ci-upload bucket  
+resource "aws_cloudwatch_event_rule" "main_pipeline_trigger" {
+    name        = "${var.org}-${var.app}-${local.env}-main-pipeline-trigger"
+    description = "Trigger main pipeline on S3 object creation in ci-upload bucket"
+    
+    event_pattern = jsonencode({
+        source = ["aws.s3"]
+        "detail-type" = ["Object Created"]
+        detail = {
+            bucket = {
+                name = [aws_s3_bucket.ci_upload.id]
+            }
+            object = {
+                key = [{
+                    prefix = "main/"
+                }]
+            }
+        }
+    })
+    
+    tags = local.tags
+}
+
 # Target for the EventBridge rule - the branch pipeline
 resource "aws_cloudwatch_event_target" "branch_pipeline" {
     rule     = aws_cloudwatch_event_rule.branch_pipeline_trigger.name
     arn      = aws_codepipeline.branch.arn
+    role_arn = aws_iam_role.eventbridge_pipeline_trigger.arn
+}
+
+# Target for the EventBridge rule - the main pipeline
+resource "aws_cloudwatch_event_target" "main_pipeline" {
+    rule     = aws_cloudwatch_event_rule.main_pipeline_trigger.name
+    arn      = aws_codepipeline.main.arn
     role_arn = aws_iam_role.eventbridge_pipeline_trigger.arn
 }
 
@@ -59,7 +89,10 @@ resource "aws_iam_role_policy" "eventbridge_pipeline_trigger" {
             {
                 Effect = "Allow"
                 Action = "codepipeline:StartPipelineExecution"
-                Resource = aws_codepipeline.branch.arn
+                Resource = [
+                    aws_codepipeline.branch.arn,
+                    aws_codepipeline.main.arn
+                ]
             }
         ]
     })

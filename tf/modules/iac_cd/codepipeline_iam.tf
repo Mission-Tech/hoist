@@ -51,7 +51,8 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "codebuild:StartBuild"
                 ]
                 Resource = [
-                    module.tf_runner.codebuild_terraform_plan_project_arn
+                    module.tf_runner.codebuild_terraform_plan_project_arn,
+                    module.tf_runner.codebuild_terraform_apply_project_arn
                 ]
             },
             {
@@ -80,7 +81,9 @@ resource "aws_iam_role_policy" "codepipeline" {
                 Action = "sts:AssumeRole"
                 Resource = [
                     "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_invoker_name}",
-                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
+                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}",
+                    "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_apply_invoker_name}",
+                    "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_apply_invoker_name}"
                 ]
             },
             {
@@ -93,6 +96,15 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "kms:RetireGrant"
                 ]
                 Resource = var.pipeline_artifacts_kms_key_arn
+            },
+            {
+                Effect = "Allow"
+                Action = [
+                    "sns:Publish"
+                ]
+                Resource = [
+                    aws_sns_topic.manual_approval.arn
+                ]
             }
         ]
     })

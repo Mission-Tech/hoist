@@ -32,7 +32,10 @@ resource "aws_iam_role_policy" "codepipeline_build_invoker" {
                     "codebuild:BatchGetBuilds",
                     "codebuild:StartBuild"
                 ]
-                Resource = aws_codebuild_project.terraform_plan.arn
+                Resource = [
+                    aws_codebuild_project.terraform_plan.arn,
+                    aws_codebuild_project.terraform_apply.arn
+                ]
             },
             {
                 # Allow reading/writing artifacts from the tools account pipeline bucket
