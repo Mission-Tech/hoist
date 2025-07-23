@@ -155,13 +155,23 @@ def lambda_handler(event, context):
                     
         except Exception as e:
             print(f"Error processing {env}: {str(e)}")
-            results[env] = {
-                'success': False,
-                'added': 0,
-                'changed': 0,
-                'destroyed': 0,
-                'plan_output': f'Error: {str(e)}'
-            }
+            # Check if it's a missing artifact (build failed)
+            if 'NoSuchKey' in str(e):
+                results[env] = {
+                    'success': False,
+                    'added': 0,
+                    'changed': 0,
+                    'destroyed': 0,
+                    'plan_output': 'Build failed - no artifact produced'
+                }
+            else:
+                results[env] = {
+                    'success': False,
+                    'added': 0,
+                    'changed': 0,
+                    'destroyed': 0,
+                    'plan_output': f'Error: {str(e)}'
+                }
             all_success = False
     
     # Send Slack notification
