@@ -50,10 +50,11 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "codebuild:BatchGetBuilds",
                     "codebuild:StartBuild"
                 ]
-                Resource = [
+                Resource = compact([
                     module.tf_runner.codebuild_terraform_plan_project_arn,
-                    module.tf_runner.codebuild_terraform_apply_project_arn
-                ]
+                    module.tf_runner.codebuild_terraform_apply_project_arn,
+                    module.tf_runner.codebuild_terraform_apply_auto_project_arn
+                ])
             },
             {
                 Effect = "Allow"

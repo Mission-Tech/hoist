@@ -78,10 +78,11 @@ resource "aws_iam_role" "codebuild_terraform_apply" {
     tags = local.tags
 }
 
-# Attach PowerUserAccess for terraform apply (needs more permissions than ReadOnly)
-resource "aws_iam_role_policy_attachment" "codebuild_terraform_apply_poweruser" {
+# TODO: Add IAM boundary policy to restrict permissions
+# Attach AdministratorAccess for terraform apply (needs IAM permissions that PowerUserAccess doesn't provide)
+resource "aws_iam_role_policy_attachment" "codebuild_terraform_apply_admin" {
     role       = aws_iam_role.codebuild_terraform_apply.name
-    policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+    policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
 # Use base_meta module to grant terraform state access
