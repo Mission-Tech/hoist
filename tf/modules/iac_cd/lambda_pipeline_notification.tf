@@ -140,12 +140,56 @@ import boto3
 import os
 import urllib3
 import re
+import zipfile
+import io
 from datetime import datetime
 
 codepipeline = boto3.client('codepipeline')
 codebuild = boto3.client('codebuild')
 s3 = boto3.client('s3')
 http = urllib3.PoolManager()
+
+def extract_summary_from_build(build_id, env):
+    """Extract hoist_summary_{env}.json from build artifacts"""
+    try:
+        builds = codebuild.batch_get_builds(ids=[build_id])['builds']
+        if not builds:
+            print(f"No build found for ID: {build_id}")
+            return None
+            
+        build = builds[0]
+        artifacts = build.get('artifacts', {})
+        location = artifacts.get('location', '')
+        
+        if not location:
+            print(f"No artifact location for build {build_id}")
+            return None
+            
+        if not location.startswith('arn:aws:s3:::'):
+            print(f"Unexpected artifact location format: {location}")
+            return None
+            
+        s3_path = location.replace('arn:aws:s3:::', '')
+        bucket, key = s3_path.split('/', 1)
+        
+        print(f"Getting zip artifact from s3://{bucket}/{key}")
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        zip_data = obj['Body'].read()
+        
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zip_file:
+            target_filename = f"hoist_summary_{env}.json"
+            for file_path in zip_file.namelist():
+                if file_path.endswith(target_filename):
+                    print(f"Found {target_filename} at {file_path}")
+                    summary_content = zip_file.read(file_path).decode('utf-8')
+                    return json.loads(summary_content), build['arn'].split(':')[4]
+        
+        print(f"hoist_summary_{env}.json not found in artifact")
+        return None
+        
+    except Exception as e:
+        print(f"Error extracting summary for {env}: {e}")
+        return None
 
 def lambda_handler(event, context):
     print(f"Event: {json.dumps(event)}")
@@ -155,6 +199,18 @@ def lambda_handler(event, context):
         pipeline_name = detail['pipeline']
         execution_id = detail['execution-id']
         state = detail['state']
+        
+        # Load pipeline configuration
+        pipeline_config = json.loads(os.environ.get('PIPELINE_CONFIG', '{}'))
+        
+        # Determine which pipeline type this is
+        if 'terraform-plan' in pipeline_name:
+            config = pipeline_config.get('branch', {})
+        else:
+            config = pipeline_config.get('main', {})
+        
+        stages = config.get('stages', {})
+        actions = config.get('actions', {})
         
         print(f"Getting execution details for pipeline: {pipeline_name}, execution: {execution_id}")
         
@@ -177,105 +233,60 @@ def lambda_handler(event, context):
             action_name = action.get('actionName', '')
             print(f"Found action: {action_name} in stage: {stage_name}")
             
-            # Handle both plan and apply actions
-            if (stage_name == 'TerraformPlan' and action_name.startswith('Plan')) or \
-               (stage_name == 'TerraformApply' and action_name.startswith('Apply')):
+            # Skip non-Plan/Apply actions (like Source)
+            if not (action_name.startswith('Plan') or action_name.startswith('Apply')):
+                continue
                 
-                if action_name.startswith('Plan'):
-                    env = action_name.replace('Plan', '').lower()
-                    operation = 'plan'
-                elif action_name.startswith('Apply'):
-                    env = action_name.replace('Apply', '').lower()
-                    operation = 'apply'
+            if action_name.startswith('Plan'):
+                env = action_name.replace('Plan', '').lower()
+                operation = 'plan'
+            elif action_name.startswith('Apply'):
+                env = action_name.replace('Apply', '').lower()
+                operation = 'apply'
+            
+            print(f"Processing {operation} action for environment: {env}")
+            
+            status = action.get('status', 'Unknown')
+            print(f"Action status: {status}")
+            
+            # Initialize result
+            results[env] = {
+                'success': status == 'Succeeded',
+                'status': status,
+                'create': 0,
+                'update': 0,
+                'delete': 0,
+                'build_id': '',
+                'error_message': action.get('errorDetails', {}).get('message', '') if action.get('errorDetails') else ''
+            }
+            
+            # Get the output details
+            output = action.get('output', {})
+            print(f"Action output keys for {env}: {list(output.keys())}")
+            print(f"Full output for {env}: {json.dumps(output)}")
+            
+            # The externalExecutionId is in executionResult, not directly in output
+            execution_result = output.get('executionResult', {})
+            external_execution_id = execution_result.get('externalExecutionId', '')
+            print(f"External execution ID for {env}: {external_execution_id}")
+            
+            if not external_execution_id:
+                print(f"No external execution ID for {env}, skipping artifact extraction")
+                continue
                 
-                print(f"Processing {operation} action for environment: {env}")
-                
-                status = action.get('status', 'Unknown')
-                print(f"Action status: {status}")
-                
-                # Initialize result
-                results[env] = {
-                    'success': status == 'Succeeded',
-                    'status': status,
-                    'create': 0,
-                    'update': 0,
-                    'delete': 0,
-                    'build_id': '',
-                    'error_message': action.get('errorDetails', {}).get('message', '') if action.get('errorDetails') else ''
-                }
-                
-                # Get the output details
-                output = action.get('output', {})
-                print(f"Action output keys for {env}: {list(output.keys())}")
-                print(f"Full output for {env}: {json.dumps(output)}")
-                
-                # The externalExecutionId is in executionResult, not directly in output
-                execution_result = output.get('executionResult', {})
-                external_execution_id = execution_result.get('externalExecutionId', '')
-                print(f"External execution ID for {env}: {external_execution_id}")
-                
-                if external_execution_id:
-                    build_id = external_execution_id
-                    results[env]['build_id'] = build_id
-                    print(f"Found build ID: {build_id}")
-                    
-                    try:
-                        # Get build details
-                        builds = codebuild.batch_get_builds(ids=[build_id])['builds']
-                        if builds:
-                            build = builds[0]
-                            results[env]['account_id'] = build['arn'].split(':')[4]
-                            
-                            # Find the primary artifact (CODEPIPELINE type)
-                            artifacts = build.get('artifacts', {})
-                            if artifacts.get('location'):
-                                # Extract S3 location from artifact
-                                # Format: arn:aws:s3:::bucket/path
-                                location = artifacts['location']
-                                print(f"Artifact location: {location}")
-                                if location.startswith('arn:aws:s3:::'):
-                                    s3_path = location.replace('arn:aws:s3:::', '')
-                                    bucket, key = s3_path.split('/', 1)
-                                    
-                                    # Get hoist_summary.json from the zip artifact
-                                    try:
-                                        print(f"Getting zip artifact from s3://{bucket}/{key}")
-                                        obj = s3.get_object(Bucket=bucket, Key=key)
-                                        
-                                        # The artifact is a zip file, we need to extract hoist_summary.json from it
-                                        import zipfile
-                                        import io
-                                        
-                                        zip_data = obj['Body'].read()
-                                        with zipfile.ZipFile(io.BytesIO(zip_data)) as zip_file:
-                                            print(f"Looking for hoist_summary_{env}.json in zip for {env}")
-                                            
-                                            # Find hoist_summary_{env}.json anywhere in the zip
-                                            summary_file = None
-                                            target_filename = f"hoist_summary_{env}.json"
-                                            for file_path in zip_file.namelist():
-                                                if file_path.endswith(target_filename):
-                                                    summary_file = file_path
-                                                    break
-                                            
-                                            if summary_file:
-                                                print(f"Found {target_filename} at {summary_file}")
-                                                summary_content = zip_file.read(summary_file).decode('utf-8')
-                                                summary = json.loads(summary_content)
-                                                print(f"Raw {target_filename} content for {env}: {json.dumps(summary)}")
-                                                
-                                                # Use the structured counts from buildspec
-                                                results[env]['create'] = summary.get('create', 0)
-                                                results[env]['update'] = summary.get('update', 0)
-                                                results[env]['delete'] = summary.get('delete', 0)
-                                                print(f"Extracted counts for {env}: create={results[env]['create']}, update={results[env]['update']}, delete={results[env]['delete']}")
-                                            else:
-                                                print(f"{target_filename} not found in zip for {env}")
-                                        
-                                    except Exception as e:
-                                        print(f"Error reading summary for {env}: {e}")
-                    except Exception as e:
-                        print(f"Error getting build details for {env}: {e}")
+            build_id = external_execution_id
+            results[env]['build_id'] = build_id
+            print(f"Found build ID: {build_id}")
+            
+            # Extract summary from build artifacts
+            summary_result = extract_summary_from_build(build_id, env)
+            if summary_result:
+                summary, account_id = summary_result
+                results[env]['account_id'] = account_id
+                results[env]['create'] = summary.get('create', 0)
+                results[env]['update'] = summary.get('update', 0)
+                results[env]['delete'] = summary.get('delete', 0)
+                print(f"Extracted counts for {env}: create={results[env]['create']}, update={results[env]['update']}, delete={results[env]['delete']}")
     
         print(f"Final results: {json.dumps(results)}")
         

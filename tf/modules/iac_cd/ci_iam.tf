@@ -40,6 +40,21 @@ resource "aws_iam_policy" "github_ci" {
                         "token.actions.githubusercontent.com:ref" = "refs/heads/main"
                     }
                 }
+            },
+            # Debug: Allow main uploads with a different condition to test
+            {
+                Sid    = "DebugMainUploads"
+                Effect = "Allow"
+                Action = [
+                    "s3:PutObject",
+                    "s3:PutObjectTagging"
+                ],
+                Resource = "${aws_s3_bucket.ci_upload.arn}/main/*",
+                Condition = {
+                    StringLike = {
+                        "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.app}:ref:refs/heads/main"
+                    }
+                }
             }
         ]
     })

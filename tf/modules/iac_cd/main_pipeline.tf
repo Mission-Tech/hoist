@@ -2,6 +2,25 @@
 
 locals {
     main_pipeline_name = "${var.org}-${var.app}-${local.env}-terraform-apply"
+    
+    # Stage names for the main pipeline
+    main_pipeline_stages = {
+        source           = "Source"
+        plan             = "TerraformPlan"
+        apply_dev_tools  = "ApplyDevTools"
+        prod_approval    = "ProdApproval"
+        apply_prod       = "ApplyProd"
+    }
+    
+    # Action names
+    main_pipeline_actions = {
+        plan_dev    = "PlanDev"
+        plan_tools  = "PlanTools"
+        plan_prod   = "PlanProd"
+        apply_dev   = "ApplyDev"
+        apply_tools = "ApplyTools"
+        apply_prod  = "ApplyProd"
+    }
 }
 
 resource "aws_codepipeline" "main" {
@@ -21,7 +40,7 @@ resource "aws_codepipeline" "main" {
     }
 
     stage {
-        name = "Source"
+        name = local.main_pipeline_stages.source
 
         action {
             name             = "Source"
@@ -42,11 +61,11 @@ resource "aws_codepipeline" "main" {
 
     # Plan stage - same as branch pipeline but for apply
     stage {
-        name = "TerraformPlan"
+        name = local.main_pipeline_stages.plan
 
         # Dev account plan
         action {
-            name            = "PlanDev"
+            name            = local.main_pipeline_actions.plan_dev
             category        = "Build"
             owner           = "AWS"
             provider        = "CodeBuild"
@@ -63,7 +82,7 @@ resource "aws_codepipeline" "main" {
 
         # Tools account plan
         action {
-            name            = "PlanTools"
+            name            = local.main_pipeline_actions.plan_tools
             category        = "Build"
             owner           = "AWS"
             provider        = "CodeBuild"
@@ -77,49 +96,30 @@ resource "aws_codepipeline" "main" {
             }
         }
 
-        # TODO: Add prod when ready
-        # action {
-        #     name            = "PlanProd"
-        #     category        = "Build"
-        #     owner           = "AWS"
-        #     provider        = "CodeBuild"
-        #     version         = "1"
-        #     input_artifacts = ["source_output"]
-        #     output_artifacts = ["prod_plan_output"]
-        #     run_order       = 1
-        #     role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
-        #
-        #     configuration = {
-        #         ProjectName = local.conventional_prod_codebuild_plan_project_name
-        #     }
-        # }
-    }
-
-    # Manual approval stage
-    stage {
-        name = "ManualApproval"
-
         action {
-            name     = "ManualApproval"
-            category = "Approval"
-            owner    = "AWS"
-            provider = "Manual"
-            version  = "1"
+            name            = local.main_pipeline_actions.plan_prod
+            category        = "Build"
+            owner           = "AWS"
+            provider        = "CodeBuild"
+            version         = "1"
+            input_artifacts = ["source_output"]
+            output_artifacts = ["prod_plan_output"]
+            run_order       = 1
+            role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
 
             configuration = {
-                NotificationArn = aws_sns_topic.manual_approval.arn
-                CustomData      = "Please review the terraform plan and approve if ready to apply changes."
+                ProjectName = local.conventional_prod_codebuild_plan_project_name
             }
         }
     }
 
-    # Apply stage
+    # Apply dev and tools immediately after planning
     stage {
-        name = "TerraformApply"
+        name = local.main_pipeline_stages.apply_dev_tools
 
         # Apply to dev environment
         action {
-            name             = "ApplyDev"
+            name             = local.main_pipeline_actions.apply_dev
             category         = "Build"
             owner            = "AWS"
             provider         = "CodeBuild"
@@ -136,7 +136,7 @@ resource "aws_codepipeline" "main" {
 
         # Apply to tools environment
         action {
-            name             = "ApplyTools"
+            name             = local.main_pipeline_actions.apply_tools
             category         = "Build"
             owner            = "AWS"
             provider         = "CodeBuild"
@@ -149,23 +149,45 @@ resource "aws_codepipeline" "main" {
                 ProjectName = module.tf_runner.codebuild_terraform_apply_project_name
             }
         }
+    }
 
-        # TODO: Add prod when ready
-        # action {
-        #     name             = "ApplyProd"
-        #     category         = "Build"
-        #     owner            = "AWS"
-        #     provider         = "CodeBuild"
-        #     version          = "1"
-        #     input_artifacts  = ["source_output", "prod_plan_output"]
-        #     output_artifacts = ["prod_apply_output"]
-        #     run_order        = 1
-        #     role_arn         = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_apply_invoker_name}"
-        #
-        #     configuration = {
-        #         ProjectName = local.conventional_prod_codebuild_apply_project_name
-        #     }
-        # }
+    # Manual approval for prod with enhanced notification
+    stage {
+        name = local.main_pipeline_stages.prod_approval
+
+        action {
+            name     = "ApproveProdDeploy"
+            category = "Approval"
+            owner    = "AWS"
+            provider = "Manual"
+            version  = "1"
+
+            configuration = {
+                NotificationArn = aws_sns_topic.manual_approval.arn
+                CustomData      = "Dev and Tools have been deployed. Please review the prod terraform plan and approve if ready to apply changes to production."
+            }
+        }
+    }
+
+    # Apply prod after approval
+    stage {
+        name = local.main_pipeline_stages.apply_prod
+
+        action {
+            name             = local.main_pipeline_actions.apply_prod
+            category         = "Build"
+            owner            = "AWS"
+            provider         = "CodeBuild"
+            version          = "1"
+            input_artifacts  = ["source_output", "prod_plan_output"]
+            output_artifacts = ["prod_apply_output"]
+            run_order        = 1
+            role_arn         = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_apply_invoker_name}"
+
+            configuration = {
+                ProjectName = local.conventional_prod_codebuild_apply_project_name
+            }
+        }
     }
 
     # No pipeline variables needed - metadata comes from files in the artifact

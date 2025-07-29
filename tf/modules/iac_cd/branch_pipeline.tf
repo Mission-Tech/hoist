@@ -2,6 +2,19 @@
 
 locals {
     branch_pipeline_name = "${var.org}-${var.app}-${local.env}-terraform-plan"
+    
+    # Stage names for the branch pipeline
+    branch_pipeline_stages = {
+        source = "Source"
+        plan   = "TerraformPlan"
+    }
+    
+    # Action names
+    branch_pipeline_actions = {
+        plan_dev   = "PlanDev"
+        plan_tools = "PlanTools"
+        plan_prod  = "PlanProd"
+    }
 }
 
 resource "aws_codepipeline" "branch" {
@@ -21,7 +34,7 @@ resource "aws_codepipeline" "branch" {
     }
 
     stage {
-        name = "Source"
+        name = local.branch_pipeline_stages.source
 
         action {
             name             = "Source"
@@ -41,11 +54,11 @@ resource "aws_codepipeline" "branch" {
     }
 
     stage {
-        name = "TerraformPlan"
+        name = local.branch_pipeline_stages.plan
 
         # Dev account plan
         action {
-            name            = "PlanDev"
+            name            = local.branch_pipeline_actions.plan_dev
             category        = "Build"
             owner           = "AWS"
             provider        = "CodeBuild"
@@ -61,29 +74,25 @@ resource "aws_codepipeline" "branch" {
         }
 
         # Prod account plan
-        # action {
-        #     name            = "PlanProd"
-        #     category        = "Invoke"
-        #     owner           = "AWS"
-        #     provider        = "Lambda"
-        #     version         = "1"
-        #     input_artifacts = ["source_output"]
-        #     output_artifacts = ["prod_plan_output"]
-        #     run_order       = 1
-        #     role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_lambda_plan_invoker_name}"
-        # 
-        #     configuration = {
-        #         FunctionName = local.conventional_prod_lambda_plan_lambda_function_name
-        #         UserParameters = jsonencode({
-        #             env = "prod"
-        #             metadata_path = "metadata.json"
-        #         })
-        #     }
-        # }
+        action {
+            name            = local.branch_pipeline_actions.plan_prod
+            category        = "Build"
+            owner           = "AWS"
+            provider        = "CodeBuild"
+            version         = "1"
+            input_artifacts = ["source_output"]
+            output_artifacts = ["prod_plan_output"]
+            run_order       = 1
+            role_arn        = "arn:aws:iam::${var.prod_account_id}:role/${local.conventional_prod_codebuild_plan_invoker_name}"
+
+            configuration = {
+                ProjectName = local.conventional_prod_codebuild_plan_project_name
+            }
+        }
 
         # Tools account plan
         action {
-            name            = "PlanTools"
+            name            = local.branch_pipeline_actions.plan_tools
             category        = "Build"
             owner           = "AWS"
             provider        = "CodeBuild"

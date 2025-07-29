@@ -23,6 +23,21 @@ resource "aws_iam_role" "github_deploy" {
                         "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.app}:*"
                     }
                 }
+            },
+            {
+                Effect = "Allow",
+                Principal = {
+                    Federated = local.github_oidc_provider_arn
+                },
+                Action = "sts:TagSession",
+                Condition = {
+                    StringEquals = {
+                        "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+                    }
+                    StringLike = {
+                        "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.app}:*"
+                    }
+                }
             }
         ]
     })

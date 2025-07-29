@@ -52,6 +52,54 @@ resource "aws_iam_role_policy_attachment" "lambda_manual_approval_basic" {
     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Policy for manual approval Lambda to access pipeline details
+resource "aws_iam_role_policy" "lambda_manual_approval" {
+    name = "manual-approval-policy"
+    role = aws_iam_role.lambda_manual_approval.id
+    
+    policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Effect = "Allow"
+                Action = [
+                    "codepipeline:GetPipeline",
+                    "codepipeline:GetPipelineExecution",
+                    "codepipeline:ListActionExecutions"
+                ]
+                Resource = [
+                    aws_codepipeline.main.arn,
+                    "${aws_codepipeline.main.arn}/*"
+                ]
+            },
+            {
+                Effect = "Allow"
+                Action = "codebuild:BatchGetBuilds"
+                Resource = "*"  # CodeBuild doesn't support resource-level permissions for BatchGetBuilds
+            },
+            {
+                Effect = "Allow"
+                Action = [
+                    "s3:GetObject",
+                    "s3:ListBucket"
+                ]
+                Resource = [
+                    "${aws_s3_bucket.tf_artifacts.arn}/*",
+                    aws_s3_bucket.tf_artifacts.arn
+                ]
+            },
+            {
+                Effect = "Allow"
+                Action = [
+                    "kms:Decrypt",
+                    "kms:DescribeKey"
+                ]
+                Resource = var.pipeline_artifacts_kms_key_arn
+            }
+        ]
+    })
+}
+
 # SNS topic subscription to Slack webhook Lambda
 resource "aws_sns_topic_subscription" "manual_approval_slack" {
     topic_arn = aws_sns_topic.manual_approval.arn
@@ -126,7 +174,7 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
     blocks = []
     
     # Header
-    header_text = "⏸️ Manual Approval Required"
+    header_text = "⏸️ Production Deployment Approval Required"
     blocks.append({
         "type": "header",
         "text": {
@@ -135,32 +183,178 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
         }
     })
     
-    # Pipeline info and link
+    # Get execution details to show what happened in dev/tools
+    try:
+        import boto3
+        codepipeline = boto3.client('codepipeline')
+        s3 = boto3.client('s3')
+        import zipfile
+        import io
+        
+        # Get pipeline execution details
+        execution = codepipeline.get_pipeline_execution(
+            pipelineName=pipeline_name,
+            pipelineExecutionId=execution_id
+        )
+        
+        # Get action executions to find completed apply actions
+        action_executions = codepipeline.list_action_executions(
+            pipelineName=pipeline_name,
+            filter={'pipelineExecutionId': execution_id}
+        )
+        
+        # Helper function to extract summary from build artifacts
+        def extract_summary_from_build(build_id, env_name):
+            try:
+                codebuild = boto3.client('codebuild')
+                builds = codebuild.batch_get_builds(ids=[build_id])['builds']
+                if not builds:
+                    print(f"No build found for ID: {build_id}")
+                    return None
+                    
+                build = builds[0]
+                artifacts = build.get('artifacts', {})
+                location = artifacts.get('location', '')
+                
+                if not location.startswith('arn:aws:s3:::'):
+                    print(f"Unexpected artifact location format: {location}")
+                    return None
+                    
+                s3_path = location.replace('arn:aws:s3:::', '')
+                bucket, key = s3_path.split('/', 1)
+                
+                # Get the zip artifact and extract summary
+                obj = s3.get_object(Bucket=bucket, Key=key)
+                zip_data = obj['Body'].read()
+                
+                with zipfile.ZipFile(io.BytesIO(zip_data)) as zip_file:
+                    target_filename = f"hoist_summary_{env_name}.json"
+                    for file_path in zip_file.namelist():
+                        if file_path.endswith(target_filename):
+                            summary_content = zip_file.read(file_path).decode('utf-8')
+                            return json.loads(summary_content)
+                
+                print(f"{target_filename} not found in artifact")
+                return None
+                
+            except Exception as e:
+                print(f"Error extracting summary for {env_name}: {e}")
+                return None
+        
+        # Extract results from dev/tools applies and prod plan
+        dev_tools_results = []
+        prod_plan_summary = None
+        
+        for action in action_executions.get('actionExecutionDetails', []):
+            action_name = action.get('actionName', '')
+            status = action.get('status', '')
+            
+            # Skip non-succeeded actions
+            if status != 'Succeeded':
+                continue
+                
+            # Get build ID from action output
+            output = action.get('output', {})
+            execution_result = output.get('executionResult', {})
+            build_id = execution_result.get('externalExecutionId', '')
+            
+            if not build_id:
+                print(f"No build ID found for action {action_name}")
+                continue
+            
+            # Process ApplyDev and ApplyTools
+            if action_name in ['ApplyDev', 'ApplyTools']:
+                env = action_name.replace('Apply', '').lower()
+                summary = extract_summary_from_build(build_id, env)
+                if summary:
+                    dev_tools_results.append({
+                        'env': env,
+                        'create': summary.get('create', 0),
+                        'update': summary.get('update', 0),
+                        'delete': summary.get('delete', 0)
+                    })
+            
+            # Process PlanProd
+            elif action_name == 'PlanProd':
+                summary = extract_summary_from_build(build_id, 'prod')
+                if summary:
+                    prod_plan_summary = {
+                        'create': summary.get('create', 0),
+                        'update': summary.get('update', 0),
+                        'delete': summary.get('delete', 0)
+                    }
+        
+        # Build status message
+        status_parts = []
+        
+        # Show dev/tools results
+        if dev_tools_results:
+            status_parts.append("*✅ Applied to Dev/Tools:*")
+            for result in dev_tools_results:
+                env = result['env'].upper()
+                changes = []
+                if result['create'] > 0:
+                    changes.append(f"+{result['create']} create")
+                if result['update'] > 0:
+                    changes.append(f"~{result['update']} update")
+                if result['delete'] > 0:
+                    changes.append(f"-{result['delete']} delete")
+                change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
+                status_parts.append(f"  • {env}{change_str}")
+        
+        # Show prod plan
+        if prod_plan_summary:
+            status_parts.append("")
+            status_parts.append("*📋 Proposed for Production:*")
+            changes = []
+            if prod_plan_summary['create'] > 0:
+                changes.append(f"+{prod_plan_summary['create']} create")
+            if prod_plan_summary['update'] > 0:
+                changes.append(f"~{prod_plan_summary['update']} update")
+            if prod_plan_summary['delete'] > 0:
+                changes.append(f"-{prod_plan_summary['delete']} delete")
+            change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
+            status_parts.append(f"  • PROD{change_str}")
+        
+        status_text = "\\n".join(status_parts) if status_parts else custom_data
+        
+    except Exception as e:
+        print(f"Error getting execution details: {e}")
+        status_text = custom_data
+    
+    # Pipeline info and status
     pipeline_url = f"https://console.aws.amazon.com/codesuite/codepipeline/pipelines/{pipeline_name}/executions/{execution_id}/timeline?region={region}"
     blocks.append({
         "type": "section",
         "text": {
             "type": "mrkdwn",
-            "text": f"*Pipeline:* <{pipeline_url}|{pipeline_name}>\\n*Action:* {action_name}\\n*Message:* {custom_data}"
+            "text": f"*Pipeline:* <{pipeline_url}|{pipeline_name}>\\n\\n{status_text}"
         }
     })
     
-    # Approval buttons section
+    # Approval actions
     blocks.append({
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": "Please review the terraform plan above and take action:"
-        },
-        "accessory": {
-            "type": "button",
-            "text": {
-                "type": "plain_text",
-                "text": "Open Pipeline"
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "📋 Review Pipeline"
+                },
+                "url": pipeline_url,
+                "style": "primary"
             },
-            "url": pipeline_url,
-            "style": "primary"
-        }
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Open Console to Approve"
+                },
+                "url": f"https://console.aws.amazon.com/codesuite/codepipeline/pipelines/{pipeline_name}/executions/{execution_id}/timeline?region={region}#approval",
+                "style": "danger"
+            }
+        ]
     })
     
     # Instructions
@@ -169,7 +363,7 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
         "elements": [
             {
                 "type": "mrkdwn",
-                "text": f"💡 *Approval Token:* `{approval_token}`\\nUse the AWS Console to approve or reject this pipeline execution."
+                "text": f"⚠️ *Action Required:* Review the production changes and approve/reject in the AWS Console"
             }
         ]
     })
