@@ -75,41 +75,15 @@ phases:
         echo "Running tofu init in $ROOT_MODULE_DIR..."
         tofu init -input=false
       
-      # Look for plan file from secondary artifact (for prod after manual approval)
+      # Run terraform apply with auto-approve (one-shot apply for dev/tools)
       - |
-        echo "Looking for plan file from plan stage..."
-        PLAN_FILE=""
-        
-        # When CodePipeline passes multiple artifacts, it creates CODEBUILD_SRC_DIR_<artifact_name> variables
-        for var in $(env | grep "^CODEBUILD_SRC_DIR_" | cut -d= -f1); do
-          dir="${!var}"
-          echo "Checking artifact directory: $var = $dir"
-          if [ -f "$dir/$ROOT_MODULE_DIR/tfplan" ]; then
-            echo "Found tfplan in $dir/$ROOT_MODULE_DIR/"
-            PLAN_FILE="$dir/$ROOT_MODULE_DIR/tfplan"
-            break
-          fi
-        done
-        
-        if [ ! -z "$PLAN_FILE" ]; then
-          echo "Copying plan file to current directory..."
-          cp "$PLAN_FILE" tfplan
-        else
-          echo "ERROR: No plan file found from plan stage!"
-          echo "This apply project requires a pre-existing plan."
-          echo "FAILED" > build_status.txt
-          exit 1
-        fi
-      
-      # Run terraform apply using the existing plan
-      - |
-        echo "Running tofu apply with existing plan..."
+        echo "Running tofu apply with auto-approve..."
         echo "---------------------------------------"
         echo "---------------------------------------"
         echo "---------------------------------------"
         echo "-------------Begin Apply---------------"
         echo "---------------------------------------"
-        if tofu apply -input=false tfplan; then
+        if tofu apply -input=false -auto-approve; then
           echo "Terraform apply succeeded"
           echo "SUCCESS" > build_status.txt
           

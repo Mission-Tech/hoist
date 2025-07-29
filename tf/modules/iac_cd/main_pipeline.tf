@@ -59,42 +59,47 @@ resource "aws_codepipeline" "main" {
         }
     }
 
-    # Plan stage - same as branch pipeline but for apply
+    # Apply dev and tools immediately (one-shot apply without separate plan)
+    stage {
+        name = local.main_pipeline_stages.apply_dev_tools
+
+        # Apply to dev environment
+        action {
+            name             = local.main_pipeline_actions.apply_dev
+            category         = "Build"
+            owner            = "AWS"
+            provider         = "CodeBuild"
+            version          = "1"
+            input_artifacts  = ["source_output"]
+            output_artifacts = ["dev_apply_output"]
+            run_order        = 1
+            role_arn         = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_apply_invoker_name}"
+
+            configuration = {
+                ProjectName = "${var.org}-${var.app}-dev-terraform-apply-auto"
+            }
+        }
+
+        # Apply to tools environment
+        action {
+            name             = local.main_pipeline_actions.apply_tools
+            category         = "Build"
+            owner            = "AWS"
+            provider         = "CodeBuild"
+            version          = "1"
+            input_artifacts  = ["source_output"]
+            output_artifacts = ["tools_apply_output"]
+            run_order        = 1
+
+            configuration = {
+                ProjectName = module.tf_runner.codebuild_terraform_apply_auto_project_name
+            }
+        }
+    }
+
+    # Plan prod for review
     stage {
         name = local.main_pipeline_stages.plan
-
-        # Dev account plan
-        action {
-            name            = local.main_pipeline_actions.plan_dev
-            category        = "Build"
-            owner           = "AWS"
-            provider        = "CodeBuild"
-            version         = "1"
-            input_artifacts = ["source_output"]
-            output_artifacts = ["dev_plan_output"]
-            run_order       = 1
-            role_arn        = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_plan_invoker_name}"
-
-            configuration = {
-                ProjectName = local.conventional_dev_codebuild_plan_project_name
-            }
-        }
-
-        # Tools account plan
-        action {
-            name            = local.main_pipeline_actions.plan_tools
-            category        = "Build"
-            owner           = "AWS"
-            provider        = "CodeBuild"
-            version         = "1"
-            input_artifacts = ["source_output"]
-            output_artifacts = ["tools_plan_output"]
-            run_order       = 1
-
-            configuration = {
-                ProjectName = module.tf_runner.codebuild_terraform_plan_project_name
-            }
-        }
 
         action {
             name            = local.main_pipeline_actions.plan_prod
@@ -109,44 +114,6 @@ resource "aws_codepipeline" "main" {
 
             configuration = {
                 ProjectName = local.conventional_prod_codebuild_plan_project_name
-            }
-        }
-    }
-
-    # Apply dev and tools immediately after planning
-    stage {
-        name = local.main_pipeline_stages.apply_dev_tools
-
-        # Apply to dev environment
-        action {
-            name             = local.main_pipeline_actions.apply_dev
-            category         = "Build"
-            owner            = "AWS"
-            provider         = "CodeBuild"
-            version          = "1"
-            input_artifacts  = ["source_output", "dev_plan_output"]
-            output_artifacts = ["dev_apply_output"]
-            run_order        = 1
-            role_arn         = "arn:aws:iam::${var.dev_account_id}:role/${local.conventional_dev_codebuild_apply_invoker_name}"
-
-            configuration = {
-                ProjectName = local.conventional_dev_codebuild_apply_project_name
-            }
-        }
-
-        # Apply to tools environment
-        action {
-            name             = local.main_pipeline_actions.apply_tools
-            category         = "Build"
-            owner            = "AWS"
-            provider         = "CodeBuild"
-            version          = "1"
-            input_artifacts  = ["source_output", "tools_plan_output"]
-            output_artifacts = ["tools_apply_output"]
-            run_order        = 1
-
-            configuration = {
-                ProjectName = module.tf_runner.codebuild_terraform_apply_project_name
             }
         }
     }
@@ -186,6 +153,7 @@ resource "aws_codepipeline" "main" {
 
             configuration = {
                 ProjectName = local.conventional_prod_codebuild_apply_project_name
+                PrimarySource = "source_output"
             }
         }
     }

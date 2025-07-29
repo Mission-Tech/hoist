@@ -72,3 +72,9 @@ variable "root_module_dir" {
     description = "Directory path to the root terraform module (e.g., 'tf/app' for dev/prod, 'tf/tools' for tools)"
     type        = string
 }
+
+variable "enable_auto_apply" {
+    description = "Whether to create the auto-apply CodeBuild project (should be false for production)"
+    type        = bool
+    default     = false
+}

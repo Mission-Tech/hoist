@@ -11,6 +11,7 @@ module "tf_runner" {
     opentofu_version = var.opentofu_version
     tools_account_id = data.aws_caller_identity.current.account_id
     tools_codepipeline_role_arn = aws_iam_role.codepipeline.arn
+    enable_auto_apply = true  # Enable for tools environment
     
     # Pass terraform variables
     tfvars = {
