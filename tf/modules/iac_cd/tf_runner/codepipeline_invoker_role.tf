@@ -34,7 +34,8 @@ resource "aws_iam_role_policy" "codepipeline_build_invoker" {
                 ]
                 Resource = [
                     aws_codebuild_project.terraform_plan.arn,
-                    aws_codebuild_project.terraform_apply.arn
+                    aws_codebuild_project.terraform_apply.arn,
+                    aws_codebuild_project.terraform_apply_auto[0].arn
                 ]
             },
             {
