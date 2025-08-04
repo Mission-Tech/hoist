@@ -83,9 +83,12 @@ phases:
         echo "---------------------------------------"
         echo "-------------Begin Apply---------------"
         echo "---------------------------------------"
-        if tofu apply -input=false -auto-approve; then
+        # Capture the apply output to extract the summary
+        if tofu apply -input=false -auto-approve 2>&1 | tee apply_full.log; then
           echo "Terraform apply succeeded"
           echo "SUCCESS" > build_status.txt
+          # Extract just the summary line for counts
+          grep "Apply complete!" apply_full.log > apply_output.txt || echo "No apply summary found" > apply_output.txt
         else
           echo "Terraform apply failed"
           echo "FAILED" > build_status.txt
@@ -134,7 +137,6 @@ phases:
               --arg author "${AUTHOR:-unknown}" \
               --argjson success $BUILD_SUCCESS \
               --arg build_id "$CODEBUILD_BUILD_ID" \
-              --arg apply_output "$(cat apply_output.txt 2>/dev/null || echo "No apply output")" \
               '{
                 env: $env,
                 commit_sha: $commit_sha,
@@ -145,7 +147,6 @@ phases:
                 create: ($counts.create // 0),
                 update: ($counts.update // 0),
                 delete: ($counts.delete // 0),
-                apply_output: $apply_output,
                 operation: "apply"
               }' > "hoist_summary_${ENVIRONMENT}.json"
       
