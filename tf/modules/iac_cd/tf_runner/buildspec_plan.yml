@@ -132,7 +132,7 @@ phases:
               --arg author "${AUTHOR:-unknown}" \
               --argjson success $BUILD_SUCCESS \
               --arg build_id "$CODEBUILD_BUILD_ID" \
-              --arg plan_output "$(cat plan_output.txt 2>/dev/null || echo "No plan output")" \
+              --arg plan_output "$(cat plan_output.txt 2>/dev/null || echo "No plan output.")" \
               '{
                 env: $env,
                 commit_sha: $commit_sha,

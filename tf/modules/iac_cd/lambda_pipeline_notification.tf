@@ -410,7 +410,7 @@ def send_slack_notification(pipeline_name, execution_id, state, results, region)
             else:
                 # Something went wrong - we don't have the data we need
                 env_emoji = "⚠️"
-                error_msg = result.get('error_message', 'unable to extract plan data')
+                error_msg = result.get('error_message', 'unable to extract plan data.')
                 change_summary = f" (error: {error_msg})"
             
             # Build text
