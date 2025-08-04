@@ -1,6 +1,6 @@
 # Parameter Store entries for sensitive terraform variables
 locals {
-    parameter_prefix = "/${var.org}/${var.app}/${var.env}/terraform-lambda"
+    parameter_prefix = "/${var.org}/${var.app}/${var.env}/tf_runner"
     # Extract only the keys from the sensitive map - these are safe to expose
     tfvars_sensitive_keys = toset(keys(nonsensitive(var.tfvars_sensitive)))
 }
