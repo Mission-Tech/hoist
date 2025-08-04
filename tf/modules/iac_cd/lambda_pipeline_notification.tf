@@ -186,8 +186,8 @@ def extract_summary_from_build(build_id, env, s3_location):
                     # Extract account ID from bucket name pattern: org-app-env-accountid-purpose
                     bucket_parts = bucket.split('-')
                     account_id = None
-                    if len(bucket_parts) >= 5 and bucket_parts[4].isdigit():
-                        account_id = bucket_parts[4]
+                    if len(bucket_parts) >= 5 and bucket_parts[3].isdigit():
+                        account_id = bucket_parts[3]
                     return json.loads(summary_content), account_id
         
         print(f"hoist_summary_{env}.json not found in artifact")
