@@ -149,17 +149,18 @@ codebuild = boto3.client('codebuild')
 s3 = boto3.client('s3')
 http = urllib3.PoolManager()
 
-def extract_summary_from_build(build_id, env):
+def extract_summary_from_build(build_id, env, s3_location):
     """Extract hoist_summary_{env}.json from build artifacts"""
     try:
-        builds = codebuild.batch_get_builds(ids=[build_id])['builds']
-        if not builds:
-            print(f"No build found for ID: {build_id}")
+        # Get S3 location from pipeline output
+        bucket = s3_location.get('bucket', '')
+        key = s3_location.get('key', '')
+        
+        if not bucket or not key:
+            print(f"Invalid S3 location provided: {s3_location}")
             return None
             
-        build = builds[0]
-        artifacts = build.get('artifacts', {})
-        location = artifacts.get('location', '')
+        location = f"arn:aws:s3:::{bucket}/{key}"
         
         if not location:
             print(f"No artifact location for build {build_id}")
@@ -182,7 +183,12 @@ def extract_summary_from_build(build_id, env):
                 if file_path.endswith(target_filename):
                     print(f"Found {target_filename} at {file_path}")
                     summary_content = zip_file.read(file_path).decode('utf-8')
-                    return json.loads(summary_content), build['arn'].split(':')[4]
+                    # Extract account ID from bucket name pattern: org-app-env-accountid-purpose
+                    bucket_parts = bucket.split('-')
+                    account_id = None
+                    if len(bucket_parts) >= 5 and bucket_parts[4].isdigit():
+                        account_id = bucket_parts[4]
+                    return json.loads(summary_content), account_id
         
         print(f"hoist_summary_{env}.json not found in artifact")
         return None
@@ -278,8 +284,19 @@ def lambda_handler(event, context):
             results[env]['build_id'] = build_id
             print(f"Found build ID: {build_id}")
             
+            # Get S3 location from output artifacts
+            output_artifacts = output.get('outputArtifacts', [])
+            if not output_artifacts:
+                print(f"No output artifacts for {env}")
+                results[env]['error_message'] = 'No output artifacts found'
+                continue
+                
+            # Get the first artifact's S3 location
+            s3_location = output_artifacts[0].get('s3location', {})
+            print(f"Getting zip artifact from s3://{s3_location.get('bucket', '')}/{s3_location.get('key', '')}")
+            
             # Extract summary from build artifacts
-            summary_result = extract_summary_from_build(build_id, env)
+            summary_result = extract_summary_from_build(build_id, env, s3_location)
             if summary_result:
                 summary, account_id = summary_result
                 results[env]['account_id'] = account_id
@@ -367,27 +384,37 @@ def send_slack_notification(pipeline_name, execution_id, state, results, region)
         if env in results:
             result = results[env]
             
-            # Build resource change summary
-            changes = []
-            if result['create'] > 0:
-                changes.append(f"+{result['create']} create")
-            if result['update'] > 0:
-                changes.append(f"~{result['update']} update")
-            if result['delete'] > 0:
-                changes.append(f"-{result['delete']} delete")
-            
-            change_summary = f" ({', '.join(changes)})" if changes else " (no changes)"
-            
-            # Determine emoji
-            if result['status'] == 'Succeeded':
-                env_emoji = "🔄" if changes else "✅"
-            else:
+            # Only show "no changes" if we're absolutely certain
+            if result['status'] == 'Succeeded' and 'create' in result and 'update' in result and 'delete' in result:
+                # We successfully got the data
+                changes = []
+                if result['create'] > 0:
+                    changes.append(f"+{result['create']} create")
+                if result['update'] > 0:
+                    changes.append(f"~{result['update']} update")
+                if result['delete'] > 0:
+                    changes.append(f"-{result['delete']} delete")
+                
+                if changes:
+                    change_summary = f" ({', '.join(changes)})"
+                    env_emoji = "🔄"
+                else:
+                    change_summary = " (no changes)"
+                    env_emoji = "✅"
+            elif result['status'] == 'Failed':
+                # Build explicitly failed
                 env_emoji = "❌"
+                change_summary = f" (build failed)"
+                if result.get('error_message'):
+                    change_summary = f" (failed: {result['error_message']})"
+            else:
+                # Something went wrong - we don't have the data we need
+                env_emoji = "⚠️"
+                error_msg = result.get('error_message', 'unable to extract plan data')
+                change_summary = f" (error: {error_msg})"
             
             # Build text
             text = f"{env_emoji} *{env.upper()}*{change_summary}"
-            if result.get('error_message'):
-                text += f"\\n_{result['error_message']}_"
             
             section = {
                 "type": "section",

@@ -86,10 +86,6 @@ phases:
         if tofu apply -input=false -auto-approve; then
           echo "Terraform apply succeeded"
           echo "SUCCESS" > build_status.txt
-          
-          # Show current state for verification
-          echo "Current terraform state:"
-          tofu show -no-color | tee apply_output.txt
         else
           echo "Terraform apply failed"
           echo "FAILED" > build_status.txt
