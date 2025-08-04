@@ -204,24 +204,14 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
         )
         
         # Helper function to extract summary from build artifacts
-        def extract_summary_from_build(build_id, env_name):
+        def extract_summary_from_build(s3_location, env_name):
             try:
-                codebuild = boto3.client('codebuild')
-                builds = codebuild.batch_get_builds(ids=[build_id])['builds']
-                if not builds:
-                    print(f"No build found for ID: {build_id}")
-                    return None
-                    
-                build = builds[0]
-                artifacts = build.get('artifacts', {})
-                location = artifacts.get('location', '')
+                bucket = s3_location.get('bucket', '')
+                key = s3_location.get('key', '')
                 
-                if not location.startswith('arn:aws:s3:::'):
-                    print(f"Unexpected artifact location format: {location}")
+                if not bucket or not key:
+                    print(f"Invalid S3 location: {s3_location}")
                     return None
-                    
-                s3_path = location.replace('arn:aws:s3:::', '')
-                bucket, key = s3_path.split('/', 1)
                 
                 # Get the zip artifact and extract summary
                 obj = s3.get_object(Bucket=bucket, Key=key)
@@ -253,19 +243,23 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
             if status != 'Succeeded':
                 continue
                 
-            # Get build ID from action output
+            # Get build ID and S3 location from action output
             output = action.get('output', {})
             execution_result = output.get('executionResult', {})
             build_id = execution_result.get('externalExecutionId', '')
+            output_artifacts = output.get('outputArtifacts', [])
             
-            if not build_id:
-                print(f"No build ID found for action {action_name}")
+            if not build_id or not output_artifacts:
+                print(f"No build ID or artifacts found for action {action_name}")
                 continue
+            
+            # Get S3 location from first artifact
+            s3_location = output_artifacts[0].get('s3location', {})
             
             # Process ApplyDev and ApplyTools
             if action_name in ['ApplyDev', 'ApplyTools']:
                 env = action_name.replace('Apply', '').lower()
-                summary = extract_summary_from_build(build_id, env)
+                summary = extract_summary_from_build(s3_location, env)
                 if summary:
                     dev_tools_results.append({
                         'env': env,
@@ -273,16 +267,27 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
                         'update': summary.get('update', 0),
                         'delete': summary.get('delete', 0)
                     })
+                else:
+                    # Failed to extract summary
+                    dev_tools_results.append({
+                        'env': env,
+                        'error': True,
+                        'create': 0,
+                        'update': 0,
+                        'delete': 0
+                    })
             
             # Process PlanProd
             elif action_name == 'PlanProd':
-                summary = extract_summary_from_build(build_id, 'prod')
+                summary = extract_summary_from_build(s3_location, 'prod')
                 if summary:
                     prod_plan_summary = {
                         'create': summary.get('create', 0),
                         'update': summary.get('update', 0),
                         'delete': summary.get('delete', 0)
                     }
+                else:
+                    prod_plan_summary = {'error': True}
         
         # Build status message
         status_parts = []
@@ -292,29 +297,35 @@ def send_manual_approval_slack(pipeline_name, execution_id, action_name, approva
             status_parts.append("*✅ Applied to Dev/Tools:*")
             for result in dev_tools_results:
                 env = result['env'].upper()
-                changes = []
-                if result['create'] > 0:
-                    changes.append(f"+{result['create']} create")
-                if result['update'] > 0:
-                    changes.append(f"~{result['update']} update")
-                if result['delete'] > 0:
-                    changes.append(f"-{result['delete']} delete")
-                change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
-                status_parts.append(f"  • {env}{change_str}")
+                if result.get('error'):
+                    status_parts.append(f"  • ⚠️ {env} (error: unable to extract apply data)")
+                else:
+                    changes = []
+                    if result['create'] > 0:
+                        changes.append(f"+{result['create']} create")
+                    if result['update'] > 0:
+                        changes.append(f"~{result['update']} update")
+                    if result['delete'] > 0:
+                        changes.append(f"-{result['delete']} delete")
+                    change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
+                    status_parts.append(f"  • {env}{change_str}")
         
         # Show prod plan
         if prod_plan_summary:
             status_parts.append("")
             status_parts.append("*📋 Proposed for Production:*")
-            changes = []
-            if prod_plan_summary['create'] > 0:
-                changes.append(f"+{prod_plan_summary['create']} create")
-            if prod_plan_summary['update'] > 0:
-                changes.append(f"~{prod_plan_summary['update']} update")
-            if prod_plan_summary['delete'] > 0:
-                changes.append(f"-{prod_plan_summary['delete']} delete")
-            change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
-            status_parts.append(f"  • PROD{change_str}")
+            if prod_plan_summary.get('error'):
+                status_parts.append(f"  • ⚠️ PROD (error: unable to extract plan data)")
+            else:
+                changes = []
+                if prod_plan_summary['create'] > 0:
+                    changes.append(f"+{prod_plan_summary['create']} create")
+                if prod_plan_summary['update'] > 0:
+                    changes.append(f"~{prod_plan_summary['update']} update")
+                if prod_plan_summary['delete'] > 0:
+                    changes.append(f"-{prod_plan_summary['delete']} delete")
+                change_str = f" ({', '.join(changes)})" if changes else " (no changes)"
+                status_parts.append(f"  • PROD{change_str}")
         
         status_text = "\\n".join(status_parts) if status_parts else custom_data
         
