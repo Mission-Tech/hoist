@@ -1,0 +1,158 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Installing dependencies..."
+      - yum install -y git jq
+      # Install OpenTofu
+      - |
+        echo "Installing OpenTofu version ${OPENTOFU_VERSION}"
+        curl -L https://github.com/opentofu/opentofu/releases/download/v${OPENTOFU_VERSION}/tofu_${OPENTOFU_VERSION}_linux_arm64.zip -o tofu.zip
+        unzip tofu.zip
+        mv tofu /usr/local/bin/
+        rm tofu.zip
+        chmod +x /usr/local/bin/tofu
+        tofu --version
+
+  pre_build:
+    commands:
+      - echo "Setting up terraform plugin cache..."
+      - export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+      - mkdir -p $TF_PLUGIN_CACHE_DIR
+      - echo "Loading sensitive parameters from SSM..."
+      - |
+        if [ ! -z "$PARAMETER_STORE_PREFIX" ]; then
+          # Get all parameters and export as TF_VAR_ environment variables
+          aws ssm get-parameters-by-path \
+            --path "$PARAMETER_STORE_PREFIX" \
+            --recursive \
+            --with-decryption \
+            --query 'Parameters[*].[Name,Value]' \
+            --output text > /tmp/ssm_params.txt
+          
+          # Create env file even if empty to avoid source error
+          touch /tmp/env_vars.sh
+          
+          # Now source them in the main shell
+          while IFS=$'\t' read -r name value; do
+            var_name=$(echo $name | sed "s|$PARAMETER_STORE_PREFIX/||" | sed 's/^/TF_VAR_/')
+            export "$var_name=$value"
+            echo "export $var_name='$value'" >> /tmp/env_vars.sh
+            echo "Loaded parameter: $var_name"
+          done < /tmp/ssm_params.txt
+          
+          # Source the environment variables file
+          source /tmp/env_vars.sh
+        fi
+      
+      # Extract metadata from the source artifact
+      - |
+        if [ -f metadata.json ]; then
+          echo "Found metadata.json:"
+          cat metadata.json
+          export COMMIT_SHA=$(jq -r '.commit_sha' metadata.json)
+          export BRANCH=$(jq -r '.branch' metadata.json)
+          export AUTHOR=$(jq -r '.author' metadata.json)
+        fi
+
+  build:
+    commands:
+      - echo "Running terraform apply for environment ${ENVIRONMENT}..."
+      
+      # Source the environment variables if they exist
+      - |
+        if [ -f /tmp/env_vars.sh ]; then
+          echo "Sourcing environment variables..."
+          source /tmp/env_vars.sh
+        fi
+      
+      # Navigate to the root module directory and run terraform init
+      - |
+        cd $ROOT_MODULE_DIR
+        echo "Running tofu init in $ROOT_MODULE_DIR..."
+        tofu init -input=false
+      
+      # Run terraform apply with auto-approve (one-shot apply for dev/tools)
+      - |
+        echo "Running tofu apply with auto-approve..."
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "-------------Begin Apply---------------"
+        echo "---------------------------------------"
+        # Capture the apply output to extract the summary
+        if tofu apply -input=false -auto-approve 2>&1 | tee apply_full.log; then
+          echo "Terraform apply succeeded"
+          echo "SUCCESS" > build_status.txt
+          # Extract just the summary line for counts
+          grep "Apply complete!" apply_full.log > apply_output.txt || echo "No apply summary found" > apply_output.txt
+        else
+          echo "Terraform apply failed"
+          echo "FAILED" > build_status.txt
+          echo "Terraform apply failed" > apply_output.txt
+          exit 1
+        fi
+        echo "---------------------------------------"
+        echo "--------------End Apply----------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+        echo "---------------------------------------"
+
+  post_build:
+    commands:
+      - |
+        echo "Creating apply summary..."
+        BUILD_SUCCESS="true"
+        if [ -f "build_status.txt" ] && [ "$(cat build_status.txt)" = "FAILED" ]; then
+          BUILD_SUCCESS="false"
+        fi
+        
+        # For apply operations, extract the actual changes that were applied
+        if [ -f "apply_output.txt" ] && [ "$BUILD_SUCCESS" = "true" ]; then
+          # Parse apply output to count actual changes
+          # Look for lines like "Apply complete! Resources: 2 added, 1 changed, 0 destroyed."
+          APPLY_SUMMARY=$(grep "Apply complete!" apply_output.txt || echo "")
+          if [ ! -z "$APPLY_SUMMARY" ]; then
+            # Extract numbers using regex
+            ADDED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* added' | grep -o '[0-9]*' || echo "0")
+            CHANGED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* changed' | grep -o '[0-9]*' || echo "0")
+            DESTROYED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* destroyed' | grep -o '[0-9]*' || echo "0")
+            
+            echo "{\"create\": $ADDED, \"update\": $CHANGED, \"delete\": $DESTROYED}" > counts.json
+          else
+            echo '{"create": 0, "update": 0, "delete": 0}' > counts.json
+          fi
+        else
+          echo '{"create": 0, "update": 0, "delete": 0}' > counts.json
+        fi
+        
+        # Create summary with actual applied counts
+        jq -n --argjson counts "$(cat counts.json)" \
+              --arg env "$ENVIRONMENT" \
+              --arg commit_sha "${COMMIT_SHA:-unknown}" \
+              --arg branch "${BRANCH:-unknown}" \
+              --arg author "${AUTHOR:-unknown}" \
+              --argjson success $BUILD_SUCCESS \
+              --arg build_id "$CODEBUILD_BUILD_ID" \
+              '{
+                env: $env,
+                commit_sha: $commit_sha,
+                branch: $branch,
+                author: $author,
+                success: $success,
+                build_id: $build_id,
+                create: ($counts.create // 0),
+                update: ($counts.update // 0),
+                delete: ($counts.delete // 0),
+                operation: "apply"
+              }' > "hoist_summary_${ENVIRONMENT}.json"
+      
+      - echo "Apply completed"
+
+artifacts:
+  files:
+    - '**/*'
+  name: apply-output

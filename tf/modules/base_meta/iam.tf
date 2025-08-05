@@ -12,7 +12,7 @@ resource "aws_iam_policy" "tfstate_access" {
           "s3:ListBucket",
           "s3:GetBucketVersioning"
         ]
-        Resource = "arn:aws:s3:::coreinfra-tfstate-${var.org}-${var.env}"
+        Resource = "arn:aws:s3:::${local.conventional_tfstate_bucket_name}"
       },
       {
         Effect = "Allow"
@@ -22,7 +22,7 @@ resource "aws_iam_policy" "tfstate_access" {
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "arn:aws:s3:::coreinfra-tfstate-${var.org}-${var.env}/${var.app}/*"
+        Resource = "arn:aws:s3:::${local.conventional_tfstate_bucket_name}/${var.app}/*"
       },
       {
         Effect = "Allow"
@@ -32,7 +32,7 @@ resource "aws_iam_policy" "tfstate_access" {
           "dynamodb:PutItem",
           "dynamodb:DeleteItem"
         ]
-        Resource = "arn:aws:dynamodb:*:*:table/coreinfra-tfstate-lock-${var.org}-${var.env}"
+        Resource = "arn:aws:dynamodb:*:*:table/${local.conventional_tfstate_lock_table_name}"
       }
     ]
   })
