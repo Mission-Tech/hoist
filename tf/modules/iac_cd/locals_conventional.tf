@@ -30,5 +30,4 @@ locals {
     
     # KMS key name created by coreinfra in tools account
     conventional_pipeline_kms_key_name = "${var.org}-coreinfra-tools-pipeline-artifacts"
-    conventional_pipeline_kms_key_alias = "alias/${local.conventional_pipeline_kms_key_name}"
 }

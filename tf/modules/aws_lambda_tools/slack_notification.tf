@@ -1,7 +1,7 @@
 # Check if Slack CD webhook exists in Parameter Store
 data "aws_ssm_parameter" "slack_cd_webhook" {
   count = 1
-  name  = "/coreinfra/shared/slack_cd_webhook_url"
+  name  = local.conventional_slack_cd_webhook_url_parameterstore_path
   
   # Continue even if parameter doesn't exist
   lifecycle {
