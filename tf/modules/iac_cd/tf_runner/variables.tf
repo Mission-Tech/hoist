@@ -80,7 +80,12 @@ variable "enable_auto_apply" {
 }
 
 variable "pipeline_artifacts_kms_key_arn" {
-    description = "KMS key ARN for pipeline artifacts. If not provided, will read from /coreinfra/shared parameter store"
+    description = <<-EOF
+      KMS key ARN for pipeline artifacts. If not provided, will read from /coreinfra/shared parameter store.
+
+      Coreinfra passes this directly to avoid circular dependency (it both creates the parameter AND needs
+      to create grants in the same apply). Apps like gometheus omit this and read from parameter store.
+    EOF
     type        = string
     default     = null
 }
