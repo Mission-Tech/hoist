@@ -78,3 +78,9 @@ variable "enable_auto_apply" {
     type        = bool
     default     = false
 }
+
+variable "pipeline_artifacts_kms_key_arn" {
+    description = "KMS key ARN for pipeline artifacts. If not provided, will read from /coreinfra/shared parameter store"
+    type        = string
+    default     = null
+}

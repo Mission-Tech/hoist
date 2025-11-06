@@ -96,7 +96,7 @@ resource "aws_iam_role_policy" "codepipeline" {
                     "kms:CreateGrant",
                     "kms:RetireGrant"
                 ]
-                Resource = var.pipeline_artifacts_kms_key_arn
+                Resource = data.aws_kms_key.pipeline_artifacts.arn
             },
             {
                 Effect = "Allow"
