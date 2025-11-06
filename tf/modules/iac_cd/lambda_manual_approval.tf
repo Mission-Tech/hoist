@@ -94,7 +94,7 @@ resource "aws_iam_role_policy" "lambda_manual_approval" {
                     "kms:Decrypt",
                     "kms:DescribeKey"
                 ]
-                Resource = var.pipeline_artifacts_kms_key_arn
+                Resource = data.aws_kms_key.pipeline_artifacts.arn
             }
         ]
     })

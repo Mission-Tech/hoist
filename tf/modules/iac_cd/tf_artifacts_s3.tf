@@ -34,7 +34,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tf_artifacts" {
     rule {
         apply_server_side_encryption_by_default {
             sse_algorithm     = "aws:kms"
-            kms_master_key_id = var.pipeline_artifacts_kms_key_arn
+            kms_master_key_id = data.aws_kms_key.pipeline_artifacts.arn
         }
         bucket_key_enabled = true
     }
