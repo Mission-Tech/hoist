@@ -41,8 +41,9 @@ resource "aws_codepipeline" "deployment_pipeline" {
       output_artifacts = ["dev_source"]
 
       configuration = {
-        S3Bucket    = aws_s3_bucket.pipeline_artifacts.bucket
-        S3ObjectKey = "source-dev.zip"
+        S3Bucket             = aws_s3_bucket.pipeline_artifacts.bucket
+        S3ObjectKey          = "source-dev.zip"
+        PollForSourceChanges = false
       }
     }
 
@@ -55,8 +56,9 @@ resource "aws_codepipeline" "deployment_pipeline" {
       output_artifacts = ["prod_source"]
 
       configuration = {
-        S3Bucket    = aws_s3_bucket.pipeline_artifacts.bucket
-        S3ObjectKey = "source-prod.zip"
+        S3Bucket             = aws_s3_bucket.pipeline_artifacts.bucket
+        S3ObjectKey          = "source-prod.zip"
+        PollForSourceChanges = false
       }
     }
   }
