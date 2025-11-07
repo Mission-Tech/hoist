@@ -132,13 +132,11 @@ phases:
         echo "---------------------------------------"
         echo "-------------Begin Apply---------------"
         echo "---------------------------------------"
-        if tofu apply -input=false tfplan; then
+        if tofu apply -input=false tfplan 2>&1 | tee apply_full.log; then
           echo "Terraform apply succeeded"
           echo "SUCCESS" > build_status.txt
-          
-          # Show current state for verification
-          echo "Current terraform state:"
-          tofu show -no-color | tee apply_output.txt
+          # Extract just the summary line for reporting
+          grep "Apply complete!" apply_full.log > apply_output.txt || echo "No apply summary found" > apply_output.txt
         else
           echo "Terraform apply failed"
           echo "FAILED" > build_status.txt
