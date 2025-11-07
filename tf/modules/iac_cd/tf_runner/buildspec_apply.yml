@@ -69,37 +69,60 @@ phases:
           source /tmp/env_vars.sh
         fi
       
-      # Navigate to the root module directory and run terraform init
+      # Look for plan artifact directory (contains plan file + .terraform modules)
       - |
-        cd $ROOT_MODULE_DIR
-        echo "Running tofu init in $ROOT_MODULE_DIR..."
-        tofu init -input=false
-      
-      # Look for plan file from secondary artifact (for prod after manual approval)
-      - |
-        echo "Looking for plan file from plan stage..."
-        PLAN_FILE=""
-        
+        echo "Looking for plan artifact from plan stage..."
+        PLAN_ARTIFACT_DIR=""
+
         # When CodePipeline passes multiple artifacts, it creates CODEBUILD_SRC_DIR_<artifact_name> variables
         for var in $(env | grep "^CODEBUILD_SRC_DIR_" | cut -d= -f1); do
           dir="${!var}"
           echo "Checking artifact directory: $var = $dir"
           if [ -f "$dir/$ROOT_MODULE_DIR/tfplan" ]; then
             echo "Found tfplan in $dir/$ROOT_MODULE_DIR/"
-            PLAN_FILE="$dir/$ROOT_MODULE_DIR/tfplan"
+            PLAN_ARTIFACT_DIR="$dir"
             break
           fi
         done
-        
-        if [ ! -z "$PLAN_FILE" ]; then
-          echo "Copying plan file to current directory..."
-          cp "$PLAN_FILE" tfplan
-        else
+
+        if [ -z "$PLAN_ARTIFACT_DIR" ]; then
           echo "ERROR: No plan file found from plan stage!"
           echo "This apply project requires a pre-existing plan."
           echo "FAILED" > build_status.txt
           exit 1
         fi
+
+      # Copy .terraform directory, lock file, and plan from artifact
+      - |
+        cd $ROOT_MODULE_DIR
+        echo "Copying .terraform directory and lock file from plan artifact..."
+
+        # Copy .terraform directory if present (contains modules and state)
+        if [ -d "$PLAN_ARTIFACT_DIR/$ROOT_MODULE_DIR/.terraform" ]; then
+          cp -r "$PLAN_ARTIFACT_DIR/$ROOT_MODULE_DIR/.terraform" .
+          echo ".terraform directory copied successfully"
+        fi
+
+        # Copy the lock file to ensure consistent provider versions
+        if [ -f "$PLAN_ARTIFACT_DIR/$ROOT_MODULE_DIR/.terraform.lock.hcl" ]; then
+          cp "$PLAN_ARTIFACT_DIR/$ROOT_MODULE_DIR/.terraform.lock.hcl" .
+          echo ".terraform.lock.hcl copied successfully"
+        else
+          echo "ERROR: .terraform.lock.hcl not found in plan artifact"
+          exit 1
+        fi
+
+        echo "Copying plan file..."
+        cp "$PLAN_ARTIFACT_DIR/$ROOT_MODULE_DIR/tfplan" tfplan
+        echo "Plan file copied successfully"
+
+      # Run tofu init to download providers (modules already present from copied .terraform)
+      - |
+        cd $ROOT_MODULE_DIR
+        echo "Running tofu init to download providers..."
+        echo "Lock file ensures we use the same provider versions as the plan"
+        tofu init -input=false
+        echo "Init complete - providers downloaded"
       
       # Run terraform apply using the existing plan
       - |
