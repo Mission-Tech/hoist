@@ -116,11 +116,16 @@ phases:
           # Look for lines like "Apply complete! Resources: 2 added, 1 changed, 0 destroyed."
           APPLY_SUMMARY=$(grep "Apply complete!" apply_output.txt || echo "")
           if [ ! -z "$APPLY_SUMMARY" ]; then
-            # Extract numbers using regex
-            ADDED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* added' | grep -o '[0-9]*' || echo "0")
-            CHANGED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* changed' | grep -o '[0-9]*' || echo "0")
-            DESTROYED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]* destroyed' | grep -o '[0-9]*' || echo "0")
-            
+            # Extract numbers using regex (use [0-9]+ to match one or more digits, head -1 to get first match)
+            ADDED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]\+ added' | grep -o '[0-9]\+' | head -1 || echo "0")
+            CHANGED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]\+ changed' | grep -o '[0-9]\+' | head -1 || echo "0")
+            DESTROYED=$(echo "$APPLY_SUMMARY" | grep -o '[0-9]\+ destroyed' | grep -o '[0-9]\+' | head -1 || echo "0")
+
+            # Ensure variables have values (fallback to 0 if empty)
+            ADDED=${ADDED:-0}
+            CHANGED=${CHANGED:-0}
+            DESTROYED=${DESTROYED:-0}
+
             echo "{\"create\": $ADDED, \"update\": $CHANGED, \"delete\": $DESTROYED}" > counts.json
           else
             echo '{"create": 0, "update": 0, "delete": 0}' > counts.json
