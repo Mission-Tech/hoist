@@ -78,3 +78,20 @@ resource "aws_lambda_permission" "api_gateway" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
+
+# Custom domain for API Gateway
+resource "aws_api_gateway_domain_name" "main" {
+  domain_name              = local.custom_domain_name
+  regional_certificate_arn = data.aws_ssm_parameter.primary_acm_certificate_arn.value
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+}
+
+# Base path mapping to connect custom domain to API stage
+resource "aws_api_gateway_base_path_mapping" "main" {
+  api_id      = aws_api_gateway_rest_api.main.id
+  stage_name  = aws_api_gateway_stage.main.stage_name
+  domain_name = aws_api_gateway_domain_name.main.domain_name
+}

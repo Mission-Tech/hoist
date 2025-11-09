@@ -31,4 +31,9 @@ variable "lambda_memory_size" {
   default     = 512
 }
 
+variable "public_app_name" {
+  description = "Public-facing name for the app. Will appear as the subdomain for the custom domain (e.g., 'myapp' for myapp.missiontech.org). Defaults to the app name."
+  type        = string
+  default     = null
+}
 
