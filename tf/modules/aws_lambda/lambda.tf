@@ -6,12 +6,9 @@ data "aws_vpc" "main" {
   }
 }
 
-# Data source for private subnets
-data "aws_subnets" "private" {
-  filter {
-    name   = "tag:Name"
-    values = local.conventional_coreinfra_subnets
-  }
+# Parse private subnet IDs from SSM parameter
+locals {
+  private_subnet_ids = split(",", data.aws_ssm_parameter.private_subnet_ids.value)
 }
 
 # Security group for Lambda function
@@ -124,9 +121,16 @@ resource "aws_iam_role_policy" "lambda_appconfig_access" {
           "appconfig:StartConfigurationSession"
         ]
         Resource = [
-          aws_appconfig_configuration_profile.config.arn,
-          aws_appconfig_configuration_profile.secrets.arn
+          "arn:aws:appconfig:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:application/${aws_appconfig_application.main.id}/environment/${aws_appconfig_environment.main.environment_id}/configuration/${aws_appconfig_configuration_profile.config.configuration_profile_id}",
+          "arn:aws:appconfig:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:application/${aws_appconfig_application.main.id}/environment/${aws_appconfig_environment.main.environment_id}/configuration/${aws_appconfig_configuration_profile.secrets.configuration_profile_id}"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = data.aws_kms_key.default.arn
       }
     ]
   })
@@ -167,7 +171,7 @@ resource "aws_lambda_function" "main" {
         "AWS_APPCONFIG_EXTENSION_PREFETCH_LIST" : "/applications/${aws_appconfig_application.main.id}/environments/${aws_appconfig_environment.main.environment_id}/configurations/${aws_appconfig_configuration_profile.config.configuration_profile_id},/applications/${aws_appconfig_application.main.id}/environments/${aws_appconfig_environment.main.environment_id}/configurations/${aws_appconfig_configuration_profile.secrets.configuration_profile_id}"
         "AWS_APPCONFIG_EXTENSION_POLL_INTERVAL_SECONDS" : "10"
         "AWS_APPCONFIG_EXTENSION_HTTP_PORT" : "2772"
-        "AWS_APPCONFIG_EXTENSION_LOG_LEVEL" : "trace"
+        "AWS_APPCONFIG_EXTENSION_LOG_LEVEL" : "info"
         # AppConfig IDs for application to use
         "APPCONFIG_APPLICATION_ID" : aws_appconfig_application.main.id
         "APPCONFIG_ENVIRONMENT_ID" : aws_appconfig_environment.main.environment_id
@@ -177,8 +181,9 @@ resource "aws_lambda_function" "main" {
   }
 
   vpc_config {
-    subnet_ids         = data.aws_subnets.private.ids
-    security_group_ids = [aws_security_group.lambda.id]
+    subnet_ids                 = local.private_subnet_ids
+    security_group_ids         = [aws_security_group.lambda.id]
+    ipv6_allowed_for_dual_stack = true
   }
 
   lifecycle {
