@@ -1,4 +1,4 @@
-# Inputs that are created by other terraform modules that we're using 
+# Inputs that are created by other terraform modules that we're using
 # because the names are conventional.
 
 locals {
@@ -9,4 +9,5 @@ locals {
         "${local.org}-${var.env}-private-1",
         "${local.org}-${var.env}-private-2"
     ]
+    conventional_coreinfra_default_kms_key_alias = "${local.org}-${var.env}-default"
 }

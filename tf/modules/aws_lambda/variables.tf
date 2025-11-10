@@ -36,4 +36,3 @@ variable "public_app_name" {
   type        = string
   default     = null
 }
-

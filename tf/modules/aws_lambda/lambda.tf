@@ -25,7 +25,15 @@ resource "aws_security_group" "lambda" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
+    description = "Allow all outbound IPv4 traffic"
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    ipv6_cidr_blocks = ["::/0"]
+    description      = "Allow all outbound IPv6 traffic"
   }
 
   tags = {
@@ -101,6 +109,29 @@ resource "aws_iam_role_policy" "lambda_ecr_access" {
   })
 }
 
+# AppConfig access policy for Lambda execution role
+resource "aws_iam_role_policy" "lambda_appconfig_access" {
+  name = "${var.app}-${var.env}-lambda-appconfig-access"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "appconfig:GetLatestConfiguration",
+          "appconfig:StartConfigurationSession"
+        ]
+        Resource = [
+          aws_appconfig_configuration_profile.config.arn,
+          aws_appconfig_configuration_profile.secrets.arn
+        ]
+      }
+    ]
+  })
+}
+
 # Data source to get the most recent image
 data "aws_ecr_image" "latest" {
   repository_name = aws_ecr_repository.lambda_repository.name
@@ -111,21 +142,37 @@ data "aws_ecr_image" "latest" {
 resource "aws_lambda_function" "main" {
   function_name = "${var.app}-${var.env}"
   role          = aws_iam_role.lambda_execution.arn
-  
+
   package_type = "Image"
   # Use the most recent image by digest
   image_uri    = "${aws_ecr_repository.lambda_repository.repository_url}@${data.aws_ecr_image.latest.image_digest}"
-  
+
   timeout     = var.lambda_timeout
   memory_size = var.lambda_memory_size
-  
+
   # Publish a version on creation
   publish = true
-  
+
+  # Note: AppConfig Lambda Extension cannot be added as a layer for Image-based functions
+  # It must be installed in the Docker image itself
+  # See: https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions.html
+
   environment {
     variables = {
         "hoist_app" : var.app
         "hoist_env" : var.env
+        # AWS SDK configuration - enable dual-stack endpoints for IPv6 support
+        "AWS_USE_DUALSTACK_ENDPOINT" : "true"
+        # AppConfig configuration
+        "AWS_APPCONFIG_EXTENSION_PREFETCH_LIST" : "/applications/${aws_appconfig_application.main.id}/environments/${aws_appconfig_environment.main.environment_id}/configurations/${aws_appconfig_configuration_profile.config.configuration_profile_id},/applications/${aws_appconfig_application.main.id}/environments/${aws_appconfig_environment.main.environment_id}/configurations/${aws_appconfig_configuration_profile.secrets.configuration_profile_id}"
+        "AWS_APPCONFIG_EXTENSION_POLL_INTERVAL_SECONDS" : "10"
+        "AWS_APPCONFIG_EXTENSION_HTTP_PORT" : "2772"
+        "AWS_APPCONFIG_EXTENSION_LOG_LEVEL" : "trace"
+        # AppConfig IDs for application to use
+        "APPCONFIG_APPLICATION_ID" : aws_appconfig_application.main.id
+        "APPCONFIG_ENVIRONMENT_ID" : aws_appconfig_environment.main.environment_id
+        "APPCONFIG_CONFIG_PROFILE_ID" : aws_appconfig_configuration_profile.config.configuration_profile_id
+        "APPCONFIG_SECRETS_PROFILE_ID" : aws_appconfig_configuration_profile.secrets.configuration_profile_id
     }
   }
 
