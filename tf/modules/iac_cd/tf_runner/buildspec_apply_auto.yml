@@ -6,7 +6,9 @@ phases:
       python: 3.11
     commands:
       - echo "Installing dependencies..."
-      - yum install -y git jq
+      # postgresql client is required for croft database IAM authentication bootstrap
+      # See: croft/tf/modules/croft_base/README.md for details
+      - yum install -y git jq postgresql
       # Install OpenTofu
       - |
         echo "Installing OpenTofu version ${OPENTOFU_VERSION}"
