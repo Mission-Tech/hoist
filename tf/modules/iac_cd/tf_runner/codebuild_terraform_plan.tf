@@ -185,6 +185,22 @@ resource "aws_iam_role_policy" "codebuild_terraform_plan" {
                         ]
                     }
                 }
+            },
+            {
+                # VPC network interface permissions (required when enable_vpc_config is true)
+                # CodeBuild creates/deletes ENIs when running in a VPC
+                Effect = "Allow"
+                Action = [
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeDhcpOptions",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeVpcs"
+                ]
+                Resource = "*"
+                # EC2 network interface actions don't support resource-level permissions
             }
         ]
     })
