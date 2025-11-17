@@ -193,6 +193,7 @@ resource "aws_iam_role_policy" "codebuild_terraform_apply" {
                 Effect = "Allow"
                 Action = [
                     "ec2:CreateNetworkInterface",
+                    "ec2:CreateNetworkInterfacePermission",
                     "ec2:DescribeNetworkInterfaces",
                     "ec2:DeleteNetworkInterface",
                     "ec2:DescribeDhcpOptions",
