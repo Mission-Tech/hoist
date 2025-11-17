@@ -42,3 +42,8 @@ output "codebuild_terraform_apply_auto_project_arn" {
     description = "ARN of the CodeBuild project for terraform apply auto"  
     value       = var.enable_auto_apply ? aws_codebuild_project.terraform_apply_auto[0].arn : null
 }
+
+output "runner_security_group_id" {
+  description = "ID of the security group of the terraform runner, to grant it additional network access if necessary."
+  value       = aws_security_group.terraform_runner.id
+}

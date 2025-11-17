@@ -56,6 +56,12 @@ resource "aws_codebuild_project" "terraform_apply_auto" {
         type = "CODEPIPELINE"
         buildspec = file("${path.module}/buildspec_apply_auto.yml")
     }
-    
+
+    vpc_config {
+        vpc_id             = data.aws_vpc.main.id
+        subnets            = local.public_subnet_ids
+        security_group_ids = [aws_security_group.terraform_runner.id]
+    }
+
     tags = local.tags
 }
