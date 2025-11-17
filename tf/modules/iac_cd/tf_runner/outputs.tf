@@ -44,6 +44,6 @@ output "codebuild_terraform_apply_auto_project_arn" {
 }
 
 output "runner_security_group_id" {
-  description = "ID of the security group of the terraform runner, to grant it additional network access if necessary."
-  value       = aws_security_group.terraform_runner.id
+  description = "ID of the security group of the terraform runner, to grant it additional network access if necessary. Null if enable_vpc_config is false."
+  value       = var.enable_vpc_config ? aws_security_group.terraform_runner[0].id : null
 }

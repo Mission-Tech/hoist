@@ -57,10 +57,16 @@ resource "aws_codebuild_project" "terraform_apply_auto" {
         buildspec = file("${path.module}/buildspec_apply_auto.yml")
     }
 
-    vpc_config {
-        vpc_id             = data.aws_vpc.main.id
-        subnets            = local.public_subnet_ids
-        security_group_ids = [aws_security_group.terraform_runner.id]
+    # Conditionally add VPC configuration
+    # Dynamic block with empty list = block not included at all (required for tools env without NAT gateway)
+    # Dynamic block with [1] = block included once (for app envs with NAT gateway)
+    dynamic "vpc_config" {
+        for_each = var.enable_vpc_config ? [1] : []
+        content {
+            vpc_id             = data.aws_vpc.main[0].id
+            subnets            = local.private_subnet_ids
+            security_group_ids = [aws_security_group.terraform_runner[0].id]
+        }
     }
 
     tags = local.tags

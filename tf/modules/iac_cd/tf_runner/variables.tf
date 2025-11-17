@@ -89,3 +89,9 @@ variable "pipeline_artifacts_kms_key_arn" {
     type        = string
     default     = null
 }
+
+variable "enable_vpc_config" {
+    description = "Enable VPC configuration for CodeBuild projects. Required for accessing VPC resources like RDS. Set to false for tools environment (no NAT gateway). Set to true for app environments (dev, prod) with NAT gateway."
+    type        = bool
+    default     = false
+}
