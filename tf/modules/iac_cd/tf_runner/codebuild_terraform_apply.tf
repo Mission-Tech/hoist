@@ -54,7 +54,19 @@ resource "aws_codebuild_project" "terraform_apply" {
         type = "CODEPIPELINE"
         buildspec = file("${path.module}/buildspec_apply.yml")
     }
-    
+
+    # Conditionally add VPC configuration
+    # Dynamic block with empty list = block not included at all (required for tools env without NAT gateway)
+    # Dynamic block with [1] = block included once (for app envs with NAT gateway)
+    dynamic "vpc_config" {
+        for_each = var.enable_vpc_config ? [1] : []
+        content {
+            vpc_id             = data.aws_vpc.main[0].id
+            subnets            = local.private_subnet_ids
+            security_group_ids = [aws_security_group.terraform_runner[0].id]
+        }
+    }
+
     tags = local.tags
 }
 
@@ -174,6 +186,23 @@ resource "aws_iam_role_policy" "codebuild_terraform_apply" {
                         ]
                     }
                 }
+            },
+            {
+                # VPC network interface permissions (required when enable_vpc_config is true)
+                # CodeBuild creates/deletes ENIs when running in a VPC
+                Effect = "Allow"
+                Action = [
+                    "ec2:CreateNetworkInterface",
+                    "ec2:CreateNetworkInterfacePermission",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:DescribeDhcpOptions",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeVpcs"
+                ]
+                Resource = "*"
+                # EC2 network interface actions don't support resource-level permissions
             }
         ]
     })
