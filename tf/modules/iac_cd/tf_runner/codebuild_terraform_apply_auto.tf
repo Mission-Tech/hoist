@@ -21,9 +21,9 @@ resource "aws_codebuild_project" "terraform_apply_auto" {
         type                       = "ARM_CONTAINER"
         image_pull_credentials_type = "CODEBUILD"
         
-        # Pass tfvars as environment variables
+        # Pass tfvars as environment variables (common vars merged with apply-specific vars)
         dynamic "environment_variable" {
-            for_each = var.tfvars
+            for_each = merge(var.tfvars, var.tfvars_apply_only)
             content {
                 name  = "TF_VAR_${environment_variable.key}"
                 value = environment_variable.value
