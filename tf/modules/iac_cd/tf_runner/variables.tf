@@ -95,3 +95,15 @@ variable "enable_vpc_config" {
     type        = bool
     default     = false
 }
+
+variable "tfvars_plan_only" {
+    description = "Map of terraform variables to pass ONLY to the plan job (merged with tfvars). Use this for variables that need different values during plan vs apply, such as database usernames with different privilege levels."
+    type        = map(string)
+    default     = {}
+}
+
+variable "tfvars_apply_only" {
+    description = "Map of terraform variables to pass ONLY to the apply job (merged with tfvars). Use this for variables that need different values during plan vs apply, such as database usernames with different privilege levels."
+    type        = map(string)
+    default     = {}
+}
