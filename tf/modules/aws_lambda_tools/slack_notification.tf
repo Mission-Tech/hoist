@@ -1,8 +1,17 @@
+# Slack Manual Approval Notifications
+#
+# This file handles Slack notifications for MANUAL APPROVAL requests only.
+# For pipeline state changes (success/failure/stopped), see pipeline_notification.tf
+#
+# Two notification types:
+# 1. Manual approval (this file): SNS-triggered when pipeline reaches approval stage
+# 2. Pipeline state changes (pipeline_notification.tf): EventBridge-triggered on pipeline completion
+
 # Check if Slack CD webhook exists in Parameter Store
 data "aws_ssm_parameter" "slack_cd_webhook" {
   count = 1
   name  = local.conventional_slack_cd_webhook_url_parameterstore_path
-  
+
   # Continue even if parameter doesn't exist
   lifecycle {
     postcondition {
@@ -86,17 +95,17 @@ resource "aws_lambda_function" "slack_notification" {
   count            = local.slack_notifications_enabled ? 1 : 0
   filename         = data.archive_file.slack_notification_lambda[0].output_path
   function_name    = local.slack_notification_lambda_name
-  role            = aws_iam_role.slack_notification_lambda[0].arn
-  handler         = "index.handler"
-  runtime         = "python3.11"
-  timeout         = 30
+  role             = aws_iam_role.slack_notification_lambda[0].arn
+  handler          = "index.handler"
+  runtime          = "python3.11"
+  timeout          = 30
   source_code_hash = data.archive_file.slack_notification_lambda[0].output_base64sha256
 
   environment {
     variables = {
       SLACK_WEBHOOK_URL = nonsensitive(data.aws_ssm_parameter.slack_cd_webhook[0].value)
-      APP_NAME = var.app
-      GITHUB_ORG = var.github_org
+      APP_NAME          = var.app
+      GITHUB_ORG        = var.github_org
     }
   }
 
