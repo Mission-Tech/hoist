@@ -11,6 +11,7 @@ locals {
   tools_codepipeline_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-codepipeline"
   tools_prepare_deployment_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-prepare-deployment"
   tools_deploy_from_pipeline_role_arn = "arn:aws:iam::${local.tools_account_id}:role/${var.app}-tools-deploy-from-pipeline"
+  tools_pipeline_artifacts_bucket = "${var.app}-${local.tools_account_id}-tools-pipeline-artifacts"
 }
 
 # IAM role for tools account to access this environment

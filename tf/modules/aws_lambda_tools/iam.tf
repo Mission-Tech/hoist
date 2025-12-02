@@ -94,6 +94,18 @@ resource "aws_iam_role_policy" "codepipeline" {
           "${aws_s3_bucket.pipeline_artifacts.arn}/*"
         ]
       },
+      # KMS permissions for artifact encryption/decryption
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey",
+          "kms:CreateGrant",
+          "kms:RetireGrant"
+        ]
+        Resource = data.aws_kms_key.pipeline_artifacts.arn
+      },
       # SNS permissions for manual approval
       {
         Effect = "Allow"
@@ -108,10 +120,16 @@ resource "aws_iam_role_policy" "codepipeline" {
         Action = [
           "sts:AssumeRole"
         ]
-        Resource = [
-          local.dev_tools_cross_account_role_arn,
-          local.prod_tools_cross_account_role_arn
-        ]
+        Resource = concat(
+          [
+            local.dev_tools_cross_account_role_arn,
+            local.prod_tools_cross_account_role_arn
+          ],
+          var.enable_migrations ? [
+            "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codebuild_migrations_invoker_name}",
+            "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codebuild_migrations_invoker_name}"
+          ] : []
+        )
       },
       # Lambda permissions for deploy-from-pipeline function
       {

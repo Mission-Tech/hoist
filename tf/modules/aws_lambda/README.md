@@ -1,7 +1,7 @@
 # hoist aws_lambda
 
 A terraform module with everything necessary to
-bootstrap a mission tech backend service on AWS lambda.
+bootstrap a Mission Tech backend service on AWS lambda.
 
 ## AWS Permissions to Run This
 
