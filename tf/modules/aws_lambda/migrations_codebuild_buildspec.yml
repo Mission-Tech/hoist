@@ -1,0 +1,43 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Installing dependencies"
+      - yum install -y jq
+
+  pre_build:
+    commands:
+      - echo "Fetching configuration from AppConfig"
+      - |
+        # Fetch config profile using get-configuration
+        aws appconfig get-configuration \
+          --application $APPCONFIG_APPLICATION_ID \
+          --environment $APPCONFIG_ENVIRONMENT_ID \
+          --configuration $APPCONFIG_CONFIG_PROFILE_ID \
+          --client-id "codebuild-migrations-$$" \
+          --region $AWS_REGION \
+          config.yaml
+
+      - echo "Logging into ECR"
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+  build:
+    commands:
+      - echo "Pulling migration image $ECR_IMAGE"
+      - docker pull $ECR_IMAGE
+
+      - echo "Running migrations with config file"
+      - |
+        # Pass AWS credentials from CodeBuild into the Docker container
+        # This allows the migrate binary to generate RDS IAM auth tokens
+        docker run --rm \
+          -v $(pwd)/config.yaml:/config.yaml \
+          -e AWS_REGION=$AWS_REGION \
+          -e AWS_CONTAINER_CREDENTIALS_RELATIVE_URI=$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
+          --entrypoint /migrate \
+          $ECR_IMAGE --config /config.yaml
+
+  post_build:
+    commands:
+      - echo "Migrations completed successfully at $(date)"

@@ -7,6 +7,12 @@ resource "aws_codepipeline" "deployment_pipeline" {
   artifact_store {
     location = aws_s3_bucket.pipeline_artifacts.bucket
     type     = "S3"
+
+    # Use the shared KMS key for encryption
+    encryption_key {
+      id   = data.aws_kms_key.pipeline_artifacts.arn
+      type = "KMS"
+    }
   }
 
   variable {
@@ -63,6 +69,48 @@ resource "aws_codepipeline" "deployment_pipeline" {
     }
   }
 
+  # Run migrations BEFORE deployments
+  # Ensures database schema is updated before new code runs
+  dynamic "stage" {
+    for_each = var.enable_migrations ? [1] : []
+    content {
+      name = "RunDevMigrations"
+
+      action {
+        name            = "RunMigrations"
+        category        = "Build"
+        owner           = "AWS"
+        provider        = "CodeBuild"
+        version         = "1"
+        input_artifacts = ["dev_source"]
+        region          = var.dev_region
+        role_arn        = "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codebuild_migrations_invoker_name}"
+
+        configuration = {
+          ProjectName = local.conventional_dev_codebuild_migrations_project_name
+
+          EnvironmentVariables = jsonencode([
+            {
+              name  = "IMAGE_TAG"
+              value = "#{variables.DEV_IMAGE_TAG}"
+              type  = "PLAINTEXT"
+            },
+            {
+              name  = "ECR_IMAGE"
+              value = "${local.dev_account_id}.dkr.ecr.${var.dev_region}.amazonaws.com/${local.dev_ecr_repository_name}:#{variables.DEV_IMAGE_TAG}"
+              type  = "PLAINTEXT"
+            },
+            {
+              name  = "ECR_REGISTRY"
+              value = "${local.dev_account_id}.dkr.ecr.${var.dev_region}.amazonaws.com"
+              type  = "PLAINTEXT"
+            }
+          ])
+        }
+      }
+    }
+  }
+
   stage {
     name = "DeployToDev"
 
@@ -103,6 +151,48 @@ resource "aws_codepipeline" "deployment_pipeline" {
       configuration = {
         NotificationArn = aws_sns_topic.manual_approval.arn
         CustomData      = "Please review the dev deployment and approve for production deployment"
+      }
+    }
+  }
+
+  # Run migrations BEFORE deployments
+  # Ensures database schema is updated before new code runs
+  dynamic "stage" {
+    for_each = var.enable_migrations ? [1] : []
+    content {
+      name = "RunProdMigrations"
+
+      action {
+        name            = "RunMigrations"
+        category        = "Build"
+        owner           = "AWS"
+        provider        = "CodeBuild"
+        version         = "1"
+        input_artifacts = ["prod_source"]
+        region          = var.prod_region
+        role_arn        = "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codebuild_migrations_invoker_name}"
+
+        configuration = {
+          ProjectName = local.conventional_prod_codebuild_migrations_project_name
+
+          EnvironmentVariables = jsonencode([
+            {
+              name  = "IMAGE_TAG"
+              value = "#{variables.PROD_IMAGE_TAG}"
+              type  = "PLAINTEXT"
+            },
+            {
+              name  = "ECR_IMAGE"
+              value = "${local.prod_account_id}.dkr.ecr.${var.prod_region}.amazonaws.com/${local.prod_ecr_repository_name}:#{variables.PROD_IMAGE_TAG}"
+              type  = "PLAINTEXT"
+            },
+            {
+              name  = "ECR_REGISTRY"
+              value = "${local.prod_account_id}.dkr.ecr.${var.prod_region}.amazonaws.com"
+              type  = "PLAINTEXT"
+            }
+          ])
+        }
       }
     }
   }

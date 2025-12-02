@@ -2,6 +2,11 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
+# KMS key for pipeline artifact encryption (created by coreinfra)
+data "aws_kms_key" "pipeline_artifacts" {
+  key_id = "alias/${local.conventional_pipeline_kms_key_alias}"
+}
+
 # Get account IDs from Parameter Store
 data "aws_ssm_parameter" "dev_account_id" {
   name = "/coreinfra/shared/dev_account_id"
@@ -26,21 +31,19 @@ locals {
   
   # Conventional names based on aws_lambda module patterns
   # These follow the naming conventions established in the aws_lambda module
-  dev_ecr_repository_name = "${var.app}-dev"
-  dev_codedeploy_app_name = "${var.app}-dev"
-  dev_deployment_group_name = "${var.app}-dev"
-  dev_lambda_function_name = "${var.app}-dev"
-  dev_manual_deploy_lambda_name = "${var.app}-dev-manual-deploy"
-  dev_deploy_lambda_name = "${var.app}-dev-deploy"
-  dev_tools_cross_account_role_arn = "arn:aws:iam::${local.dev_account_id}:role/${var.app}-dev-tools-access"
-  
-  prod_ecr_repository_name = "${var.app}-prod"
-  prod_codedeploy_app_name = "${var.app}-prod"
-  prod_deployment_group_name = "${var.app}-prod"
-  prod_lambda_function_name = "${var.app}-prod"
-  prod_manual_deploy_lambda_name = "${var.app}-prod-manual-deploy"
-  prod_deploy_lambda_name = "${var.app}-prod-deploy"
-  prod_tools_cross_account_role_arn = "arn:aws:iam::${local.prod_account_id}:role/${var.app}-prod-tools-access"
+  dev_ecr_repository_name = local.conventional_dev_ecr_repository_name
+  dev_codedeploy_app_name = local.conventional_dev_codedeploy_app_name
+  dev_deployment_group_name = local.conventional_dev_deployment_group_name
+  dev_lambda_function_name = local.conventional_dev_lambda_function_name
+  dev_deploy_lambda_name = local.conventional_dev_deploy_lambda_name
+  dev_tools_cross_account_role_arn = "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_tools_cross_account_role_name}"
+
+  prod_ecr_repository_name = local.conventional_prod_ecr_repository_name
+  prod_codedeploy_app_name = local.conventional_prod_codedeploy_app_name
+  prod_deployment_group_name = local.conventional_prod_deployment_group_name
+  prod_lambda_function_name = local.conventional_prod_lambda_function_name
+  prod_deploy_lambda_name = local.conventional_prod_deploy_lambda_name
+  prod_tools_cross_account_role_arn = "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_tools_cross_account_role_name}"
 }
 
 # S3 bucket for pipeline artifacts
@@ -96,12 +99,18 @@ resource "aws_s3_bucket_policy" "pipeline_artifacts" {
         Sid       = "AllowCodeDeployBucketAccess"
         Effect    = "Allow"
         Principal = {
-          AWS = [
-            local.dev_tools_cross_account_role_arn,
-            local.prod_tools_cross_account_role_arn,
-            "arn:aws:iam::${local.dev_account_id}:role/${var.app}-dev-codedeploy",
-            "arn:aws:iam::${local.prod_account_id}:role/${var.app}-prod-codedeploy"
-          ]
+          AWS = concat(
+            [
+              local.dev_tools_cross_account_role_arn,
+              local.prod_tools_cross_account_role_arn,
+              "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codedeploy_role_name}",
+              "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codedeploy_role_name}"
+            ],
+            var.enable_migrations ? [
+              "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codebuild_migrations_role_name}",
+              "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codebuild_migrations_role_name}"
+            ] : []
+          )
         }
         Action = [
           "s3:ListBucket",
@@ -114,12 +123,18 @@ resource "aws_s3_bucket_policy" "pipeline_artifacts" {
         Sid       = "AllowCodeDeployObjectAccess"
         Effect    = "Allow"
         Principal = {
-          AWS = [
-            local.dev_tools_cross_account_role_arn,
-            local.prod_tools_cross_account_role_arn,
-            "arn:aws:iam::${local.dev_account_id}:role/${var.app}-dev-codedeploy",
-            "arn:aws:iam::${local.prod_account_id}:role/${var.app}-prod-codedeploy"
-          ]
+          AWS = concat(
+            [
+              local.dev_tools_cross_account_role_arn,
+              local.prod_tools_cross_account_role_arn,
+              "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codedeploy_role_name}",
+              "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codedeploy_role_name}"
+            ],
+            var.enable_migrations ? [
+              "arn:aws:iam::${local.dev_account_id}:role/${local.conventional_dev_codebuild_migrations_role_name}",
+              "arn:aws:iam::${local.prod_account_id}:role/${local.conventional_prod_codebuild_migrations_role_name}"
+            ] : []
+          )
         }
         Action = [
           "s3:GetObject",
