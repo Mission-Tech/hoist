@@ -45,10 +45,10 @@ output "appconfig_secrets_profile_id" {
 
 output "app_subnet_ids" {
   description = "The subnet IDs where the app Lambda runs"
-  value       = data.aws_subnets.private.ids
+  value       = aws_lambda_function.main.vpc_config[0].subnet_ids
 }
 
 output "ecr_image_uri" {
   description = "The ECR image URI for the app's Docker image"
-  value       = "${aws_ecr_repository.main.repository_url}:${var.env}"
+  value       = "${aws_ecr_repository.lambda_repository.repository_url}:${var.env}"
 }

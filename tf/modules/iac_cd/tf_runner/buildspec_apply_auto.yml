@@ -86,13 +86,22 @@ phases:
         echo "-------------Begin Apply---------------"
         echo "---------------------------------------"
         # Capture the apply output to extract the summary
-        if tofu apply -input=false -auto-approve 2>&1 | tee apply_full.log; then
-          echo "Terraform apply succeeded"
+        # -detailed-exitcode returns: 0=no changes, 1=error, 2=changes applied
+        tofu apply -input=false -auto-approve -detailed-exitcode 2>&1 | tee apply_full.log
+        EXIT_CODE=$?
+
+        if [ $EXIT_CODE -eq 1 ]; then
+          echo "Terraform apply failed with errors"
+          echo "FAILED" > build_status.txt
+          echo "Terraform apply failed" > apply_output.txt
+          exit 1
+        elif [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 2 ]; then
+          echo "Terraform apply succeeded (exit code: $EXIT_CODE)"
           echo "SUCCESS" > build_status.txt
           # Extract just the summary line for counts
           grep "Apply complete!" apply_full.log > apply_output.txt || echo "No apply summary found" > apply_output.txt
         else
-          echo "Terraform apply failed"
+          echo "Terraform apply failed with unexpected exit code: $EXIT_CODE"
           echo "FAILED" > build_status.txt
           echo "Terraform apply failed" > apply_output.txt
           exit 1
