@@ -85,7 +85,9 @@ resource "aws_iam_role_policy" "deploy_lambda" {
         ]
         Resource = [
           "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}",
-          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}:*"
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}:*",
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}-worker",
+          "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.app}-${var.env}-worker:*"
         ]
       }
     ]
@@ -107,6 +109,7 @@ resource "aws_lambda_function" "deploy" {
       CODEDEPLOY_APP_NAME    = aws_codedeploy_app.lambda.name
       DEPLOYMENT_GROUP_NAME  = aws_codedeploy_deployment_group.lambda.deployment_group_name
       LAMBDA_FUNCTION_NAME   = "${var.app}-${var.env}"
+      WORKER_FUNCTION_NAME   = "${var.app}-${var.env}-worker"
       HEALTH_CHECK_FUNCTION_NAME = aws_lambda_function.health_check.function_name
       APPSPEC_BUCKET = aws_s3_bucket.codedeploy_appspec.bucket
     }

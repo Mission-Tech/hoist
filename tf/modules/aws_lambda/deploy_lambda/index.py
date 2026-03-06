@@ -26,17 +26,31 @@ def handler(event, context):
     function_name = os.environ['LAMBDA_FUNCTION_NAME']
     
     try:
-        # First, update the Lambda function with the new image
+        worker_function_name = os.environ['WORKER_FUNCTION_NAME']
+
+        # Update both Lambda functions in parallel
         print(f"Updating Lambda function {function_name} with image: {image_uri}")
         lambda_client.update_function_code(
             FunctionName=function_name,
             ImageUri=image_uri
         )
-        
-        # Wait for the update to complete
+
+        print(f"Updating worker Lambda function {worker_function_name} with image: {image_uri}")
+        lambda_client.update_function_code(
+            FunctionName=worker_function_name,
+            ImageUri=image_uri
+        )
+
+        # Wait for both updates to complete
         waiter = lambda_client.get_waiter('function_updated')
+        print(f"Waiting for {function_name} to complete update...")
         waiter.wait(FunctionName=function_name)
-        
+        print(f"Main Lambda function {function_name} updated successfully")
+
+        print(f"Waiting for {worker_function_name} to complete update...")
+        waiter.wait(FunctionName=worker_function_name)
+        print(f"Worker Lambda function {worker_function_name} updated successfully")
+
         # Publish a new version
         version_response = lambda_client.publish_version(
             FunctionName=function_name,
